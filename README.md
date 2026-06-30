@@ -149,18 +149,35 @@ uv run python scripts/train.py \
 The smoke run is only a pipeline check. It should produce:
 
 - `outputs/ticket6_smoke/checkpoint.pt`
+- `outputs/ticket6_smoke/best_checkpoint.pt`
 - `outputs/ticket6_smoke/metrics.json`
 - `outputs/ticket6_smoke/loss_curve.png`
 
-For a longer local run, remove the batch limits and use the default model size:
+For a longer local run, remove the batch limits and use the default model size.
+This example uses warmup plus cosine learning-rate decay and stops early when
+validation loss no longer improves:
 
 ```bash
-uv run python scripts/train.py --output-dir outputs/local_run --epochs 5
+uv run python scripts/train.py \
+  --output-dir outputs/local_run \
+  --epochs 30 \
+  --scheduler cosine \
+  --warmup-ratio 0.05 \
+  --min-learning-rate 0.00005 \
+  --early-stopping-patience 10 \
+  --early-stopping-min-delta 0.001
 ```
 
 The training script prefers Apple Silicon `mps` when available, then falls back
 to CUDA or CPU. Generated checkpoints, metrics, plots, vocabulary files, and text
 data are ignored by Git.
+
+When scheduler support is enabled with `--scheduler cosine`, the learning rate
+warms up for `--warmup-steps` or `--warmup-ratio` of total optimizer steps, then
+decays toward `--min-learning-rate`. The metrics file records the learning rate
+for each epoch, `best_validation_loss`, `best_epoch`, and whether training
+stopped early. `checkpoint.pt` stores the final model state, while
+`best_checkpoint.pt` stores the model state from the best validation epoch.
 
 ## Generation Sampling
 

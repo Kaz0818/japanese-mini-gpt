@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -47,9 +48,15 @@ class TrainingConfig:
     feed_forward_dim: int
     dropout: float
     learning_rate: float
+    scheduler: str
+    warmup_steps: int | None
+    warmup_ratio: float
+    min_learning_rate: float
     epochs: int
     max_train_batches: int | None
     max_validation_batches: int | None
+    early_stopping_patience: int | None
+    early_stopping_min_delta: float
     seed: int
     device: str
 
@@ -71,6 +78,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--feed-forward-dim", type=int, default=512)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
+    parser.add_argument(
+        "--scheduler",
+        choices=("none", "cosine"),
+        default="none",
+        help="Use 'cosine' for warmup followed by cosine decay.",
+    )
+    parser.add_argument(
+        "--warmup-steps",
+        type=int,
+        default=None,
+        help="Number of optimizer steps used for learning-rate warmup.",
+    )
+    parser.add_argument(
+        "--warmup-ratio",
+        type=float,
+        default=0.05,
+        help="Warmup fraction of total optimizer steps when --warmup-steps is omitted.",
+    )
+    parser.add_argument("--min-learning-rate", type=float, default=0.0)
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument(
         "--max-train-batches",
@@ -84,6 +110,18 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Limit validation batches for a quick smoke run.",
     )
+    parser.add_argument(
+        "--early-stopping-patience",
+        type=int,
+        default=None,
+        help="Stop after this many epochs without validation improvement.",
+    )
+    parser.add_argument(
+        "--early-stopping-min-delta",
+        type=float,
+        default=0.0,
+        help="Required validation-loss improvement for early stopping.",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--device",
@@ -91,6 +129,23 @@ def parse_args() -> argparse.Namespace:
         default="auto",
     )
     return parser.parse_args()
+
+
+def validate_training_args(args: argparse.Namespace) -> None:
+    if args.learning_rate <= 0:
+        raise ValueError("learning_rate must be positive")
+    if args.min_learning_rate < 0:
+        raise ValueError("min_learning_rate must be 0 or greater")
+    if args.min_learning_rate > args.learning_rate:
+        raise ValueError("min_learning_rate must be <= learning_rate")
+    if args.warmup_steps is not None and args.warmup_steps < 0:
+        raise ValueError("warmup_steps must be 0 or greater")
+    if not 0.0 <= args.warmup_ratio < 1.0:
+        raise ValueError("warmup_ratio must be at least 0 and less than 1")
+    if args.early_stopping_patience is not None and args.early_stopping_patience < 1:
+        raise ValueError("early_stopping_patience must be at least 1")
+    if args.early_stopping_min_delta < 0:
+        raise ValueError("early_stopping_min_delta must be 0 or greater")
 
 
 def choose_device(requested_device: str) -> torch.device:
@@ -140,15 +195,61 @@ def language_modeling_loss(
     )
 
 
+def count_limited_batches(
+    loader: torch.utils.data.DataLoader,
+    max_batches: int | None,
+) -> int:
+    if max_batches is None:
+        return len(loader)
+    return min(max_batches, len(loader))
+
+
+def create_warmup_cosine_scheduler(
+    optimizer: torch.optim.Optimizer,
+    *,
+    scheduler_name: str,
+    total_training_steps: int,
+    learning_rate: float,
+    min_learning_rate: float,
+    warmup_steps: int,
+) -> torch.optim.lr_scheduler.LambdaLR | None:
+    if scheduler_name == "none":
+        return None
+    if scheduler_name != "cosine":
+        raise ValueError(f"Unsupported scheduler: {scheduler_name}")
+    if total_training_steps < 1:
+        raise ValueError("total_training_steps must be at least 1")
+
+    minimum_ratio = min_learning_rate / learning_rate
+
+    def lr_lambda(step_index: int) -> float:
+        # LambdaLR calls this before the first optimizer step with step_index=0.
+        current_step = step_index + 1
+        if warmup_steps > 0 and current_step <= warmup_steps:
+            return max(minimum_ratio, current_step / warmup_steps)
+
+        decay_steps = max(1, total_training_steps - warmup_steps)
+        decay_progress = min(
+            1.0,
+            max(0.0, (current_step - warmup_steps) / decay_steps),
+        )
+        cosine_ratio = 0.5 * (1.0 + math.cos(math.pi * decay_progress))
+        return minimum_ratio + (1.0 - minimum_ratio) * cosine_ratio
+
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+
+
 def train_one_epoch(
     model: MiniTransformerDecoder,
     train_loader: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
+    scheduler: torch.optim.lr_scheduler.LambdaLR | None,
     device: torch.device,
     max_batches: int | None,
-) -> float:
+) -> tuple[float, int]:
     model.train()
     losses: list[float] = []
+    processed_batches = 0
 
     for batch_index, batch in enumerate(train_loader, start=1):
         if max_batches is not None and batch_index > max_batches:
@@ -160,12 +261,15 @@ def train_one_epoch(
         loss = language_modeling_loss(logits, target_ids)
         loss.backward()
         optimizer.step()
+        if scheduler is not None:
+            scheduler.step()
 
         losses.append(float(loss.detach().cpu()))
+        processed_batches += 1
 
     if not losses:
         raise RuntimeError("No training batches were processed.")
-    return sum(losses) / len(losses)
+    return sum(losses) / len(losses), processed_batches
 
 
 @torch.no_grad()
@@ -216,8 +320,36 @@ def json_ready_config(config: TrainingConfig) -> dict[str, object]:
     return payload
 
 
+def save_checkpoint(
+    path: Path,
+    model: MiniTransformerDecoder,
+    model_config: MiniTransformerConfig,
+    training_config: TrainingConfig,
+    history: list[dict[str, float]],
+    vocab_path: Path,
+    *,
+    checkpoint_type: str,
+    best_validation_loss: float,
+    best_epoch: int | None,
+) -> None:
+    torch.save(
+        {
+            "model_state_dict": model.state_dict(),
+            "model_config": asdict(model_config),
+            "training_config": json_ready_config(training_config),
+            "vocab_path": str(vocab_path),
+            "history": history,
+            "checkpoint_type": checkpoint_type,
+            "best_validation_loss": best_validation_loss,
+            "best_epoch": best_epoch,
+        },
+        path,
+    )
+
+
 def main() -> None:
     args = parse_args()
+    validate_training_args(args)
     device = choose_device(args.device)
     torch.manual_seed(args.seed)
 
@@ -235,9 +367,15 @@ def main() -> None:
         feed_forward_dim=args.feed_forward_dim,
         dropout=args.dropout,
         learning_rate=args.learning_rate,
+        scheduler=args.scheduler,
+        warmup_steps=args.warmup_steps,
+        warmup_ratio=args.warmup_ratio,
+        min_learning_rate=args.min_learning_rate,
         epochs=args.epochs,
         max_train_batches=args.max_train_batches,
         max_validation_batches=args.max_validation_batches,
+        early_stopping_patience=args.early_stopping_patience,
+        early_stopping_min_delta=args.early_stopping_min_delta,
         seed=args.seed,
         device=device.type,
     )
@@ -268,17 +406,40 @@ def main() -> None:
     )
     model = MiniTransformerDecoder(model_config).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_config.learning_rate)
+    train_batches_per_epoch = count_limited_batches(
+        train_loader,
+        training_config.max_train_batches,
+    )
+    total_training_steps = train_batches_per_epoch * training_config.epochs
+    if training_config.warmup_steps is None:
+        warmup_steps = int(total_training_steps * training_config.warmup_ratio)
+    else:
+        warmup_steps = training_config.warmup_steps
+    scheduler = create_warmup_cosine_scheduler(
+        optimizer,
+        scheduler_name=training_config.scheduler,
+        total_training_steps=total_training_steps,
+        learning_rate=training_config.learning_rate,
+        min_learning_rate=training_config.min_learning_rate,
+        warmup_steps=warmup_steps,
+    )
 
     output_dir = training_config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
     started_at = perf_counter()
     history: list[dict[str, float]] = []
+    best_validation_loss = float("inf")
+    best_epoch: int | None = None
+    epochs_without_improvement = 0
+    stopped_early = False
+    best_checkpoint_path = output_dir / "best_checkpoint.pt"
     for epoch in range(1, training_config.epochs + 1):
-        train_loss = train_one_epoch(
+        train_loss, processed_train_batches = train_one_epoch(
             model,
             train_loader,
             optimizer,
+            scheduler,
             device,
             training_config.max_train_batches,
         )
@@ -288,33 +449,72 @@ def main() -> None:
             device,
             training_config.max_validation_batches,
         )
+        current_learning_rate = optimizer.param_groups[0]["lr"]
         history.append(
             {
                 "epoch": epoch,
                 "train_loss": train_loss,
                 "validation_loss": validation_loss,
+                "learning_rate": current_learning_rate,
+                "processed_train_batches": processed_train_batches,
             }
         )
+
+        improved = (
+            validation_loss
+            < best_validation_loss - training_config.early_stopping_min_delta
+        )
+        if improved:
+            best_validation_loss = validation_loss
+            best_epoch = epoch
+            epochs_without_improvement = 0
+            save_checkpoint(
+                best_checkpoint_path,
+                model,
+                model_config,
+                training_config,
+                history,
+                training_config.vocab_path,
+                checkpoint_type="best_validation",
+                best_validation_loss=best_validation_loss,
+                best_epoch=best_epoch,
+            )
+        else:
+            epochs_without_improvement += 1
+
         print(
             f"epoch={epoch} "
             f"train_loss={train_loss:.4f} "
-            f"validation_loss={validation_loss:.4f}"
+            f"validation_loss={validation_loss:.4f} "
+            f"lr={current_learning_rate:.6g}"
         )
+        if (
+            training_config.early_stopping_patience is not None
+            and epochs_without_improvement >= training_config.early_stopping_patience
+        ):
+            stopped_early = True
+            print(
+                "early_stopping="
+                f"epoch {epoch} stopped after "
+                f"{epochs_without_improvement} epochs without improvement"
+            )
+            break
 
     elapsed_seconds = perf_counter() - started_at
     checkpoint_path = output_dir / "checkpoint.pt"
     metrics_path = output_dir / "metrics.json"
     loss_curve_path = output_dir / "loss_curve.png"
 
-    torch.save(
-        {
-            "model_state_dict": model.state_dict(),
-            "model_config": asdict(model_config),
-            "training_config": json_ready_config(training_config),
-            "vocab_path": str(training_config.vocab_path),
-            "history": history,
-        },
+    save_checkpoint(
         checkpoint_path,
+        model,
+        model_config,
+        training_config,
+        history,
+        training_config.vocab_path,
+        checkpoint_type="last",
+        best_validation_loss=best_validation_loss,
+        best_epoch=best_epoch,
     )
     save_loss_curve(history, loss_curve_path)
 
@@ -324,13 +524,20 @@ def main() -> None:
         "dataset_examples": len(dataset),
         "train_batches": len(train_loader),
         "validation_batches": len(validation_loader),
+        "train_batches_per_epoch": train_batches_per_epoch,
+        "total_training_steps": total_training_steps,
+        "warmup_steps": warmup_steps,
         "vocab_size": tokenizer.vocab_size,
         "history": history,
         "final_train_loss": history[-1]["train_loss"],
         "final_validation_loss": history[-1]["validation_loss"],
+        "best_validation_loss": best_validation_loss,
+        "best_epoch": best_epoch,
+        "stopped_early": stopped_early,
         "elapsed_seconds": elapsed_seconds,
         "artifacts": {
             "checkpoint": str(checkpoint_path),
+            "best_checkpoint": str(best_checkpoint_path),
             "metrics": str(metrics_path),
             "loss_curve": str(loss_curve_path),
         },
@@ -342,6 +549,9 @@ def main() -> None:
 
     print(f"device={device.type}")
     print(f"checkpoint={checkpoint_path}")
+    print(f"best_checkpoint={best_checkpoint_path}")
+    print(f"best_epoch={best_epoch}")
+    print(f"best_validation_loss={best_validation_loss:.4f}")
     print(f"metrics={metrics_path}")
     print(f"loss_curve={loss_curve_path}")
 
