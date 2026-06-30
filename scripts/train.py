@@ -3,10 +3,13 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from time import perf_counter
+
+os.environ["MPLBACKEND"] = "Agg"
 
 import matplotlib
 
