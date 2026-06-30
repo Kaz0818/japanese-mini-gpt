@@ -164,7 +164,7 @@ Target commit:
 
 ## Ticket 8: Style Comparison Experiments
 
-Status: `TODO`
+Status: `DONE`
 
 Goal:
 Compare generation behavior across authors and document the results honestly.

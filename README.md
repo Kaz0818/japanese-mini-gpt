@@ -19,13 +19,13 @@ settings.
 
 ## Current Status
 
-Ticket 7 is complete. The project now has a small reproducible Aozora Bunko data
+Ticket 8 is complete. The project now has a small reproducible Aozora Bunko data
 preparation pipeline, a self-made character tokenizer, and next-token
 language-modeling batches, plus a small GPT-style decoder for forward-pass
-smoke checks, a plain PyTorch training loop, and checkpoint-based text
-generation.
+smoke checks, a plain PyTorch training loop, checkpoint-based text generation,
+and a first author-style comparison note.
 
-Style comparison experiments will be added in a later ticket.
+SentencePiece comparison will be added in a later ticket.
 
 ## Workflow
 
@@ -321,6 +321,26 @@ top-k + top-p:
 吾輩はあの顔を見ている。
 「それであなた。
 ```
+
+## Style Comparison Experiments
+
+Ticket 8 adds [experiments/results.md](experiments/results.md). It records a
+small comparable run for each author using the same model settings, generation
+examples for greedy, temperature, top-k, and top-p sampling, and an honest
+failure analysis.
+
+The local artifacts are intentionally ignored by Git:
+
+- `outputs/ticket8_style/<author_id>/metrics.json`
+- `outputs/ticket8_style/<author_id>/loss_curve.png`
+- `outputs/ticket8_style/<author_id>/best_checkpoint.pt`
+- `outputs/ticket8_style/<author_id>/*.txt`
+
+The runs show the training and generation pipeline working, but they do not yet
+show reliable author style. The documented failures include repeated characters,
+rare kanji jumps, punctuation loops, small per-author datasets, character
+tokenizer limits, short context length, small model size, short training time,
+and sampling randomness.
 
 ## Planned Outputs
 
