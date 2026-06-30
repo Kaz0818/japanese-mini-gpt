@@ -179,6 +179,71 @@ for each epoch, `best_validation_loss`, `best_epoch`, and whether training
 stopped early. `checkpoint.pt` stores the final model state, while
 `best_checkpoint.pt` stores the model state from the best validation epoch.
 
+## Colab And W&B
+
+For longer runs on Google Colab, select a GPU runtime, clone the repository, and
+set up the project with `uv`:
+
+```bash
+git clone <your-repository-url>
+cd mini-transformer
+pip install uv
+uv sync --locked
+```
+
+Log in to Weights & Biases once per Colab runtime:
+
+```bash
+uv run wandb login
+```
+
+Then prepare the local Colab dataset and train with W&B logging enabled:
+
+```bash
+uv run python scripts/prepare_aozora.py
+
+uv run python scripts/train.py \
+  --output-dir outputs/local_run_colab \
+  --block-size 64 \
+  --stride 64 \
+  --batch-size 32 \
+  --embedding-dim 128 \
+  --num-layers 4 \
+  --num-heads 4 \
+  --feed-forward-dim 512 \
+  --dropout 0.2 \
+  --epochs 50 \
+  --learning-rate 0.001 \
+  --scheduler cosine \
+  --warmup-ratio 0.05 \
+  --min-learning-rate 0.00005 \
+  --early-stopping-patience 8 \
+  --early-stopping-min-delta 0.001 \
+  --use-wandb \
+  --wandb-project mini-transformer \
+  --wandb-run-name block64-char-v1
+```
+
+W&B logging is opt-in. When `--use-wandb` is set, the script logs the run config,
+epoch losses, learning rate, `loss_curve.png`, `metrics.json`, and
+`best_checkpoint.pt` as a model artifact. The final `checkpoint.pt` stays local
+to avoid storing every checkpoint artifact.
+
+Generate from the best Colab checkpoint:
+
+```bash
+uv run python scripts/generate.py \
+  --checkpoint outputs/local_run_colab/best_checkpoint.pt \
+  --prompt 吾輩は \
+  --max-new-tokens 120 \
+  --temperature 0.8 \
+  --top-k 20 \
+  --top-p 0.9
+```
+
+Colab runtimes are temporary, so copy any local `outputs/` files you need to
+Google Drive or rely on W&B for the logged metrics and best checkpoint artifact.
+
 ## Generation Sampling
 
 Ticket 7 adds checkpoint-based text generation. The script loads

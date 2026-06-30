@@ -57,6 +57,9 @@ class TrainingConfig:
     max_validation_batches: int | None
     early_stopping_patience: int | None
     early_stopping_min_delta: float
+    use_wandb: bool
+    wandb_project: str
+    wandb_run_name: str | None
     seed: int
     device: str
 
@@ -122,6 +125,13 @@ def parse_args() -> argparse.Namespace:
         default=0.0,
         help="Required validation-loss improvement for early stopping.",
     )
+    parser.add_argument(
+        "--use-wandb",
+        action="store_true",
+        help="Log training metrics and best checkpoint to Weights & Biases.",
+    )
+    parser.add_argument("--wandb-project", type=str, default="mini-transformer")
+    parser.add_argument("--wandb-run-name", type=str, default=None)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--device",
@@ -347,6 +357,97 @@ def save_checkpoint(
     )
 
 
+def build_run_config(
+    training_config: TrainingConfig,
+    model_config: MiniTransformerConfig,
+    *,
+    dataset_examples: int,
+    train_batches: int,
+    validation_batches: int,
+    train_batches_per_epoch: int,
+    total_training_steps: int,
+    warmup_steps: int,
+    vocab_size: int,
+) -> dict[str, object]:
+    return {
+        "training_config": json_ready_config(training_config),
+        "model_config": asdict(model_config),
+        "dataset_examples": dataset_examples,
+        "train_batches": train_batches,
+        "validation_batches": validation_batches,
+        "train_batches_per_epoch": train_batches_per_epoch,
+        "total_training_steps": total_training_steps,
+        "warmup_steps": warmup_steps,
+        "vocab_size": vocab_size,
+    }
+
+
+def init_wandb_run(
+    training_config: TrainingConfig,
+    run_config: dict[str, object],
+):
+    if not training_config.use_wandb:
+        return None
+
+    import wandb
+
+    return wandb.init(
+        project=training_config.wandb_project,
+        name=training_config.wandb_run_name,
+        config=run_config,
+    )
+
+
+def log_wandb_epoch(
+    wandb_run,
+    *,
+    epoch: int,
+    train_loss: float,
+    validation_loss: float,
+    learning_rate: float,
+    best_validation_loss: float,
+    processed_train_batches: int,
+) -> None:
+    if wandb_run is None:
+        return
+
+    wandb_run.log(
+        {
+            "epoch": epoch,
+            "train_loss": train_loss,
+            "validation_loss": validation_loss,
+            "learning_rate": learning_rate,
+            "best_validation_loss": best_validation_loss,
+            "processed_train_batches": processed_train_batches,
+        },
+        step=epoch,
+    )
+
+
+def log_wandb_artifacts(
+    wandb_run,
+    *,
+    loss_curve_path: Path,
+    metrics_path: Path,
+    best_checkpoint_path: Path,
+) -> None:
+    if wandb_run is None:
+        return
+
+    import wandb
+
+    wandb_run.log({"loss_curve": wandb.Image(str(loss_curve_path))})
+    wandb_run.save(str(metrics_path))
+
+    artifact = wandb.Artifact(
+        name=f"{wandb_run.name or 'mini-transformer'}-best-checkpoint",
+        type="model",
+        description="Best validation checkpoint for the mini Transformer run.",
+    )
+    artifact.add_file(str(best_checkpoint_path))
+    wandb_run.log_artifact(artifact)
+
+
 def main() -> None:
     args = parse_args()
     validate_training_args(args)
@@ -376,6 +477,9 @@ def main() -> None:
         max_validation_batches=args.max_validation_batches,
         early_stopping_patience=args.early_stopping_patience,
         early_stopping_min_delta=args.early_stopping_min_delta,
+        use_wandb=args.use_wandb,
+        wandb_project=args.wandb_project,
+        wandb_run_name=args.wandb_run_name,
         seed=args.seed,
         device=device.type,
     )
@@ -423,137 +527,177 @@ def main() -> None:
         min_learning_rate=training_config.min_learning_rate,
         warmup_steps=warmup_steps,
     )
+    run_config = build_run_config(
+        training_config,
+        model_config,
+        dataset_examples=len(dataset),
+        train_batches=len(train_loader),
+        validation_batches=len(validation_loader),
+        train_batches_per_epoch=train_batches_per_epoch,
+        total_training_steps=total_training_steps,
+        warmup_steps=warmup_steps,
+        vocab_size=tokenizer.vocab_size,
+    )
+    wandb_run = init_wandb_run(training_config, run_config)
 
     output_dir = training_config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    started_at = perf_counter()
-    history: list[dict[str, float]] = []
-    best_validation_loss = float("inf")
-    best_epoch: int | None = None
-    epochs_without_improvement = 0
-    stopped_early = False
-    best_checkpoint_path = output_dir / "best_checkpoint.pt"
-    for epoch in range(1, training_config.epochs + 1):
-        train_loss, processed_train_batches = train_one_epoch(
-            model,
-            train_loader,
-            optimizer,
-            scheduler,
-            device,
-            training_config.max_train_batches,
-        )
-        validation_loss = evaluate(
-            model,
-            validation_loader,
-            device,
-            training_config.max_validation_batches,
-        )
-        current_learning_rate = optimizer.param_groups[0]["lr"]
-        history.append(
-            {
-                "epoch": epoch,
-                "train_loss": train_loss,
-                "validation_loss": validation_loss,
-                "learning_rate": current_learning_rate,
-                "processed_train_batches": processed_train_batches,
-            }
-        )
-
-        improved = (
-            validation_loss
-            < best_validation_loss - training_config.early_stopping_min_delta
-        )
-        if improved:
-            best_validation_loss = validation_loss
-            best_epoch = epoch
-            epochs_without_improvement = 0
-            save_checkpoint(
-                best_checkpoint_path,
+    try:
+        started_at = perf_counter()
+        history: list[dict[str, float]] = []
+        best_validation_loss = float("inf")
+        best_epoch: int | None = None
+        epochs_without_improvement = 0
+        stopped_early = False
+        best_checkpoint_path = output_dir / "best_checkpoint.pt"
+        for epoch in range(1, training_config.epochs + 1):
+            train_loss, processed_train_batches = train_one_epoch(
                 model,
-                model_config,
-                training_config,
-                history,
-                training_config.vocab_path,
-                checkpoint_type="best_validation",
+                train_loader,
+                optimizer,
+                scheduler,
+                device,
+                training_config.max_train_batches,
+            )
+            validation_loss = evaluate(
+                model,
+                validation_loader,
+                device,
+                training_config.max_validation_batches,
+            )
+            current_learning_rate = optimizer.param_groups[0]["lr"]
+            history.append(
+                {
+                    "epoch": epoch,
+                    "train_loss": train_loss,
+                    "validation_loss": validation_loss,
+                    "learning_rate": current_learning_rate,
+                    "processed_train_batches": processed_train_batches,
+                }
+            )
+
+            improved = (
+                validation_loss
+                < best_validation_loss - training_config.early_stopping_min_delta
+            )
+            if improved:
+                best_validation_loss = validation_loss
+                best_epoch = epoch
+                epochs_without_improvement = 0
+                save_checkpoint(
+                    best_checkpoint_path,
+                    model,
+                    model_config,
+                    training_config,
+                    history,
+                    training_config.vocab_path,
+                    checkpoint_type="best_validation",
+                    best_validation_loss=best_validation_loss,
+                    best_epoch=best_epoch,
+                )
+            else:
+                epochs_without_improvement += 1
+
+            log_wandb_epoch(
+                wandb_run,
+                epoch=epoch,
+                train_loss=train_loss,
+                validation_loss=validation_loss,
+                learning_rate=current_learning_rate,
                 best_validation_loss=best_validation_loss,
-                best_epoch=best_epoch,
+                processed_train_batches=processed_train_batches,
             )
-        else:
-            epochs_without_improvement += 1
-
-        print(
-            f"epoch={epoch} "
-            f"train_loss={train_loss:.4f} "
-            f"validation_loss={validation_loss:.4f} "
-            f"lr={current_learning_rate:.6g}"
-        )
-        if (
-            training_config.early_stopping_patience is not None
-            and epochs_without_improvement >= training_config.early_stopping_patience
-        ):
-            stopped_early = True
             print(
-                "early_stopping="
-                f"epoch {epoch} stopped after "
-                f"{epochs_without_improvement} epochs without improvement"
+                f"epoch={epoch} "
+                f"train_loss={train_loss:.4f} "
+                f"validation_loss={validation_loss:.4f} "
+                f"lr={current_learning_rate:.6g}"
             )
-            break
+            if (
+                training_config.early_stopping_patience is not None
+                and epochs_without_improvement
+                >= training_config.early_stopping_patience
+            ):
+                stopped_early = True
+                print(
+                    "early_stopping="
+                    f"epoch {epoch} stopped after "
+                    f"{epochs_without_improvement} epochs without improvement"
+                )
+                break
 
-    elapsed_seconds = perf_counter() - started_at
-    checkpoint_path = output_dir / "checkpoint.pt"
-    metrics_path = output_dir / "metrics.json"
-    loss_curve_path = output_dir / "loss_curve.png"
+        elapsed_seconds = perf_counter() - started_at
+        checkpoint_path = output_dir / "checkpoint.pt"
+        metrics_path = output_dir / "metrics.json"
+        loss_curve_path = output_dir / "loss_curve.png"
 
-    save_checkpoint(
-        checkpoint_path,
-        model,
-        model_config,
-        training_config,
-        history,
-        training_config.vocab_path,
-        checkpoint_type="last",
-        best_validation_loss=best_validation_loss,
-        best_epoch=best_epoch,
-    )
-    save_loss_curve(history, loss_curve_path)
+        save_checkpoint(
+            checkpoint_path,
+            model,
+            model_config,
+            training_config,
+            history,
+            training_config.vocab_path,
+            checkpoint_type="last",
+            best_validation_loss=best_validation_loss,
+            best_epoch=best_epoch,
+        )
+        save_loss_curve(history, loss_curve_path)
 
-    metrics = {
-        "config": json_ready_config(training_config),
-        "model_config": asdict(model_config),
-        "dataset_examples": len(dataset),
-        "train_batches": len(train_loader),
-        "validation_batches": len(validation_loader),
-        "train_batches_per_epoch": train_batches_per_epoch,
-        "total_training_steps": total_training_steps,
-        "warmup_steps": warmup_steps,
-        "vocab_size": tokenizer.vocab_size,
-        "history": history,
-        "final_train_loss": history[-1]["train_loss"],
-        "final_validation_loss": history[-1]["validation_loss"],
-        "best_validation_loss": best_validation_loss,
-        "best_epoch": best_epoch,
-        "stopped_early": stopped_early,
-        "elapsed_seconds": elapsed_seconds,
-        "artifacts": {
-            "checkpoint": str(checkpoint_path),
-            "best_checkpoint": str(best_checkpoint_path),
-            "metrics": str(metrics_path),
-            "loss_curve": str(loss_curve_path),
-        },
-    }
-    metrics_path.write_text(
-        json.dumps(metrics, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+        metrics = {
+            "config": json_ready_config(training_config),
+            "model_config": asdict(model_config),
+            "dataset_examples": len(dataset),
+            "train_batches": len(train_loader),
+            "validation_batches": len(validation_loader),
+            "train_batches_per_epoch": train_batches_per_epoch,
+            "total_training_steps": total_training_steps,
+            "warmup_steps": warmup_steps,
+            "vocab_size": tokenizer.vocab_size,
+            "history": history,
+            "final_train_loss": history[-1]["train_loss"],
+            "final_validation_loss": history[-1]["validation_loss"],
+            "best_validation_loss": best_validation_loss,
+            "best_epoch": best_epoch,
+            "stopped_early": stopped_early,
+            "elapsed_seconds": elapsed_seconds,
+            "wandb": {
+                "enabled": training_config.use_wandb,
+                "project": training_config.wandb_project,
+                "run_name": training_config.wandb_run_name,
+                "run_id": wandb_run.id if wandb_run is not None else None,
+            },
+            "artifacts": {
+                "checkpoint": str(checkpoint_path),
+                "best_checkpoint": str(best_checkpoint_path),
+                "metrics": str(metrics_path),
+                "loss_curve": str(loss_curve_path),
+            },
+        }
+        metrics_path.write_text(
+            json.dumps(metrics, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        log_wandb_artifacts(
+            wandb_run,
+            loss_curve_path=loss_curve_path,
+            metrics_path=metrics_path,
+            best_checkpoint_path=best_checkpoint_path,
+        )
 
-    print(f"device={device.type}")
-    print(f"checkpoint={checkpoint_path}")
-    print(f"best_checkpoint={best_checkpoint_path}")
-    print(f"best_epoch={best_epoch}")
-    print(f"best_validation_loss={best_validation_loss:.4f}")
-    print(f"metrics={metrics_path}")
-    print(f"loss_curve={loss_curve_path}")
+        print(f"device={device.type}")
+        print(f"checkpoint={checkpoint_path}")
+        print(f"best_checkpoint={best_checkpoint_path}")
+        print(f"best_epoch={best_epoch}")
+        print(f"best_validation_loss={best_validation_loss:.4f}")
+        print(f"metrics={metrics_path}")
+        print(f"loss_curve={loss_curve_path}")
+        if wandb_run is not None:
+            print(f"wandb_run={wandb_run.url}")
+    finally:
+        if wandb_run is not None:
+            wandb_run.finish()
 
 
 if __name__ == "__main__":
