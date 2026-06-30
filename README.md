@@ -49,12 +49,12 @@ Shift-JIS text, removes common Aozora header/footer text, ruby markup, and
 annotation markup, then writes cleaned UTF-8 text under `data/processed/`.
 
 The smoke output prints `author_id,title,characters,processed_text` so the next
-ticket can confirm there is usable text for each author. The initial manifest
-uses one work per author:
+ticket can confirm there is usable text for each author. The manifest uses three
+works per author:
 
-- 夏目 漱石: `坊っちゃん`
-- 芥川 竜之介: `羅生門`
-- 太宰 治: `走れメロス`
+- 夏目 漱石: `坊っちゃん`, `こころ`, `吾輩は猫である`
+- 芥川 竜之介: `羅生門`, `鼻`, `蜘蛛の糸`
+- 太宰 治: `走れメロス`, `斜陽`, `人間失格`
 
 Limitations:
 

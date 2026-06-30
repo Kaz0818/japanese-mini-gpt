@@ -39,14 +39,14 @@ Prepare reproducible Japanese literary text data without committing full raw
 texts.
 
 Tasks:
-- Add an author/work manifest for Natsume Soseki, Akutagawa Ryunosuke, and Dazai Osamu.
+- Add an author/work manifest with three works each for Natsume Soseki, Akutagawa Ryunosuke, and Dazai Osamu.
 - Add a download and cleaning script for Aozora Bunko-style text.
 - Store generated files under ignored paths such as `data/raw/` and `data/processed/`.
 - Remove common metadata, ruby annotations, and boilerplate where practical.
 - Add a smoke command that reports character counts per author.
 
 Done criteria:
-- The script can prepare a small local dataset from the manifest.
+- The script can prepare a small local dataset with three works per author from the manifest.
 - Generated text data remains ignored by Git.
 - The README documents the data command and limitations.
 - Changes are verified and committed locally.
