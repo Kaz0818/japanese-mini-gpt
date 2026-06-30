@@ -120,7 +120,7 @@ Target commit:
 
 ## Ticket 6: Training Loop And Loss Curve
 
-Status: `TODO`
+Status: `DONE`
 
 Goal:
 Train the mini Transformer and save basic learning artifacts.

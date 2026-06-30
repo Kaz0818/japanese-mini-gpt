@@ -19,12 +19,12 @@ settings.
 
 ## Current Status
 
-Ticket 5 is complete. The project now has a small reproducible Aozora Bunko data
+Ticket 6 is complete. The project now has a small reproducible Aozora Bunko data
 preparation pipeline, a self-made character tokenizer, and next-token
 language-modeling batches, plus a small GPT-style decoder for forward-pass
-smoke checks.
+smoke checks and a plain PyTorch training loop.
 
-Implementation code for training and generation will be added in later tickets.
+Implementation code for generation will be added in a later ticket.
 
 ## Workflow
 
@@ -119,6 +119,47 @@ uv run python scripts/inspect_model_forward.py
 The command creates random token ids, runs a forward pass, and checks that the
 logits have shape `[batch, block, vocab]`. The default smoke model is deliberately
 small so later local training experiments can run on a laptop.
+
+## Training Loop And Loss Curve
+
+Ticket 6 adds a plain PyTorch training loop. It loads the processed text records,
+builds or loads the character vocabulary, creates train/validation batches,
+trains the mini Transformer with next-token cross entropy loss, and saves basic
+learning artifacts under `outputs/`.
+
+Run a tiny smoke training job:
+
+```bash
+uv run python scripts/train.py \
+  --output-dir outputs/ticket6_smoke \
+  --block-size 16 \
+  --stride 256 \
+  --batch-size 2 \
+  --embedding-dim 32 \
+  --num-layers 1 \
+  --num-heads 4 \
+  --feed-forward-dim 64 \
+  --dropout 0.0 \
+  --epochs 1 \
+  --max-train-batches 2 \
+  --max-validation-batches 1
+```
+
+The smoke run is only a pipeline check. It should produce:
+
+- `outputs/ticket6_smoke/checkpoint.pt`
+- `outputs/ticket6_smoke/metrics.json`
+- `outputs/ticket6_smoke/loss_curve.png`
+
+For a longer local run, remove the batch limits and use the default model size:
+
+```bash
+uv run python scripts/train.py --output-dir outputs/local_run --epochs 5
+```
+
+The training script prefers Apple Silicon `mps` when available, then falls back
+to CUDA or CPU. Generated checkpoints, metrics, plots, vocabulary files, and text
+data are ignored by Git.
 
 ## Planned Outputs
 
