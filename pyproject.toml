@@ -4,4 +4,7 @@ version = "0.1.0"
 description = "Small GPT-style Japanese literature text generation project"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "numpy>=2.5.0",
+    "torch>=2.12.1",
+]

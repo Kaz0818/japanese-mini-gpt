@@ -78,7 +78,7 @@ Target commit:
 
 ## Ticket 4: Dataset And Batching
 
-Status: `TODO`
+Status: `DONE`
 
 Goal:
 Turn tokenized text into language-modeling batches for next-token prediction.

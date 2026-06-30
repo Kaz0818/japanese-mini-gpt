@@ -19,11 +19,12 @@ settings.
 
 ## Current Status
 
-Ticket 3 is complete. The project now has a small reproducible Aozora Bunko data
-preparation pipeline and a self-made character tokenizer.
+Ticket 4 is complete. The project now has a small reproducible Aozora Bunko data
+preparation pipeline, a self-made character tokenizer, and next-token
+language-modeling batches.
 
-Implementation code for dataset batching, modeling, training, and generation
-will be added in later tickets.
+Implementation code for modeling, training, and generation will be added in
+later tickets.
 
 ## Workflow
 
@@ -85,6 +86,23 @@ The command builds a vocabulary from `data/processed/**/*.txt`, saves it to
 `data/tokenizers/char_vocab.json`, reloads it, and prints a small
 text -> token ids -> text round trip. The vocabulary file is generated under
 `data/`, so it is intentionally ignored by Git.
+
+## Dataset And Batching
+
+Ticket 4 adds next-token language-modeling batches. Each example is a fixed
+length window where `input_ids` is the current token sequence and `target_ids` is
+the same sequence shifted one token to the right.
+
+Run:
+
+```bash
+uv run python scripts/inspect_lm_batches.py
+```
+
+The command loads the cleaned text records, creates the character vocabulary if
+needed, creates train/validation `DataLoader` objects, and prints batch shapes
+plus author/source metadata. The metadata is kept in each batch so later tickets
+can compare generation by author.
 
 ## Planned Outputs
 
