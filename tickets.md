@@ -142,7 +142,7 @@ Target commit:
 
 ## Ticket 7: Generation Sampling
 
-Status: `TODO`
+Status: `DONE`
 
 Goal:
 Generate Japanese text from a trained checkpoint with multiple sampling modes.

@@ -19,12 +19,13 @@ settings.
 
 ## Current Status
 
-Ticket 6 is complete. The project now has a small reproducible Aozora Bunko data
+Ticket 7 is complete. The project now has a small reproducible Aozora Bunko data
 preparation pipeline, a self-made character tokenizer, and next-token
 language-modeling batches, plus a small GPT-style decoder for forward-pass
-smoke checks and a plain PyTorch training loop.
+smoke checks, a plain PyTorch training loop, and checkpoint-based text
+generation.
 
-Implementation code for generation will be added in a later ticket.
+Style comparison experiments will be added in a later ticket.
 
 ## Workflow
 
@@ -160,6 +161,84 @@ uv run python scripts/train.py --output-dir outputs/local_run --epochs 5
 The training script prefers Apple Silicon `mps` when available, then falls back
 to CUDA or CPU. Generated checkpoints, metrics, plots, vocabulary files, and text
 data are ignored by Git.
+
+## Generation Sampling
+
+Ticket 7 adds checkpoint-based text generation. The script loads
+`checkpoint.pt`, restores the model config and weights, loads the character
+vocabulary, encodes a prompt, and repeatedly samples the next token from the last
+position's logits.
+
+Greedy decoding uses the highest-logit token each step:
+
+```bash
+uv run python scripts/generate.py \
+  --checkpoint outputs/ticket6_smoke/checkpoint.pt \
+  --prompt 吾輩は \
+  --max-new-tokens 80 \
+  --temperature 0
+```
+
+Temperature sampling makes generation more or less random. Higher values sample
+more freely; `0` means greedy decoding:
+
+```bash
+uv run python scripts/generate.py \
+  --checkpoint outputs/ticket6_smoke/checkpoint.pt \
+  --prompt 吾輩は \
+  --max-new-tokens 80 \
+  --temperature 0.8
+```
+
+Top-k sampling keeps only the `k` highest-logit candidates before sampling:
+
+```bash
+uv run python scripts/generate.py \
+  --checkpoint outputs/ticket6_smoke/checkpoint.pt \
+  --prompt 吾輩は \
+  --max-new-tokens 80 \
+  --temperature 0.8 \
+  --top-k 20
+```
+
+Top-p sampling keeps the smallest set of candidates whose cumulative probability
+reaches `p`:
+
+```bash
+uv run python scripts/generate.py \
+  --checkpoint outputs/ticket6_smoke/checkpoint.pt \
+  --prompt 吾輩は \
+  --max-new-tokens 80 \
+  --temperature 0.8 \
+  --top-p 0.9
+```
+
+You can combine `--top-k` and `--top-p`, and you can save the generation log
+under ignored output paths:
+
+```bash
+uv run python scripts/generate.py \
+  --checkpoint outputs/ticket6_smoke/checkpoint.pt \
+  --prompt 吾輩は \
+  --max-new-tokens 80 \
+  --temperature 0.8 \
+  --top-k 20 \
+  --top-p 0.9 \
+  --output-path outputs/generation/sample.txt
+```
+
+Representative smoke examples from a short local checkpoint are below. These
+only prove that the generation path works; they are not quality claims.
+
+```text
+greedy:
+吾輩はまた。
+　私は、その時、その時、その時、
+
+top-k + top-p:
+吾輩はあの顔を見ている。
+「それであなた。
+```
 
 ## Planned Outputs
 
