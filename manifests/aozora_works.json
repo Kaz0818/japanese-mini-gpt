@@ -1,0 +1,28 @@
+{
+  "works": [
+    {
+      "author_id": "natsume_soseki",
+      "author": "Natsume Soseki",
+      "author_japanese": "夏目 漱石",
+      "title": "Botchan",
+      "title_japanese": "坊っちゃん",
+      "card_url": "https://www.aozora.gr.jp/cards/000148/card752.html"
+    },
+    {
+      "author_id": "akutagawa_ryunosuke",
+      "author": "Akutagawa Ryunosuke",
+      "author_japanese": "芥川 竜之介",
+      "title": "Rashomon",
+      "title_japanese": "羅生門",
+      "card_url": "https://www.aozora.gr.jp/cards/000879/card127.html"
+    },
+    {
+      "author_id": "dazai_osamu",
+      "author": "Dazai Osamu",
+      "author_japanese": "太宰 治",
+      "title": "Run Melos",
+      "title_japanese": "走れメロス",
+      "card_url": "https://www.aozora.gr.jp/cards/000035/card1567.html"
+    }
+  ]
+}

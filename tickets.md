@@ -32,7 +32,7 @@ Target commit:
 
 ## Ticket 2: Data Download And Cleaning
 
-Status: `TODO`
+Status: `DONE`
 
 Goal:
 Prepare reproducible Japanese literary text data without committing full raw

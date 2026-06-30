@@ -19,11 +19,11 @@ settings.
 
 ## Current Status
 
-This repository is at the planning and workflow stage. The first task is to set
-up `AGENTS.md` and `tickets.md` so the project can be built one ticket at a time.
+Ticket 2 is complete. The project now has a small reproducible Aozora Bunko data
+preparation pipeline.
 
-Implementation code for data preparation, tokenization, modeling, training, and
-generation will be added in later tickets.
+Implementation code for tokenization, modeling, training, and generation will be
+added in later tickets.
 
 ## Workflow
 
@@ -31,6 +31,38 @@ See `AGENTS.md` for repository rules and `tickets.md` for the ticket roadmap.
 
 Each ticket should be implemented, verified, committed locally, and then stopped
 before moving to the next ticket.
+
+## Data Preparation
+
+Ticket 2 adds a reproducible Aozora Bunko-style data preparation pipeline. The
+tracked manifest is [manifests/aozora_works.json](manifests/aozora_works.json),
+and the generated text files are intentionally ignored by Git.
+
+Run:
+
+```bash
+uv run python scripts/prepare_aozora.py
+```
+
+The script downloads the text zip linked from each Aozora card, extracts the
+Shift-JIS text, removes common Aozora header/footer text, ruby markup, and
+annotation markup, then writes cleaned UTF-8 text under `data/processed/`.
+
+The smoke output prints `author_id,title,characters,processed_text` so the next
+ticket can confirm there is usable text for each author. The initial manifest
+uses one work per author:
+
+- 夏目 漱石: `坊っちゃん`
+- 芥川 竜之介: `羅生門`
+- 太宰 治: `走れメロス`
+
+Limitations:
+
+- The script is a small learning pipeline, not a complete Aozora parser.
+- Cleaning rules are intentionally simple and should be inspected before using a
+  larger corpus.
+- Full raw and processed texts are local generated artifacts and are not
+  committed.
 
 ## Planned Outputs
 
