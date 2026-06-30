@@ -19,11 +19,11 @@ settings.
 
 ## Current Status
 
-Ticket 2 is complete. The project now has a small reproducible Aozora Bunko data
-preparation pipeline.
+Ticket 3 is complete. The project now has a small reproducible Aozora Bunko data
+preparation pipeline and a self-made character tokenizer.
 
-Implementation code for tokenization, modeling, training, and generation will be
-added in later tickets.
+Implementation code for dataset batching, modeling, training, and generation
+will be added in later tickets.
 
 ## Workflow
 
@@ -63,6 +63,28 @@ Limitations:
   larger corpus.
 - Full raw and processed texts are local generated artifacts and are not
   committed.
+
+## Character Tokenizer
+
+Ticket 3 adds a self-made character tokenizer. It learns one token per character
+from the cleaned text files and reserves four special tokens at the beginning of
+the vocabulary:
+
+- `<pad>`: padding token for future batches
+- `<unk>`: fallback token for unseen characters
+- `<bos>`: beginning-of-sequence marker
+- `<eos>`: end-of-sequence marker
+
+Run the inspection command after data preparation:
+
+```bash
+uv run python scripts/inspect_char_tokenizer.py
+```
+
+The command builds a vocabulary from `data/processed/**/*.txt`, saves it to
+`data/tokenizers/char_vocab.json`, reloads it, and prints a small
+text -> token ids -> text round trip. The vocabulary file is generated under
+`data/`, so it is intentionally ignored by Git.
 
 ## Planned Outputs
 

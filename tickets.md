@@ -56,7 +56,7 @@ Target commit:
 
 ## Ticket 3: Character Tokenizer
 
-Status: `TODO`
+Status: `DONE`
 
 Goal:
 Implement the first tokenizer as a self-made character tokenizer for learning.
