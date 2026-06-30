@@ -99,7 +99,7 @@ Target commit:
 
 ## Ticket 5: Mini Transformer Decoder
 
-Status: `TODO`
+Status: `DONE`
 
 Goal:
 Implement a small GPT-style decoder in plain PyTorch.

@@ -19,12 +19,12 @@ settings.
 
 ## Current Status
 
-Ticket 4 is complete. The project now has a small reproducible Aozora Bunko data
+Ticket 5 is complete. The project now has a small reproducible Aozora Bunko data
 preparation pipeline, a self-made character tokenizer, and next-token
-language-modeling batches.
+language-modeling batches, plus a small GPT-style decoder for forward-pass
+smoke checks.
 
-Implementation code for modeling, training, and generation will be added in
-later tickets.
+Implementation code for training and generation will be added in later tickets.
 
 ## Workflow
 
@@ -103,6 +103,22 @@ The command loads the cleaned text records, creates the character vocabulary if
 needed, creates train/validation `DataLoader` objects, and prints batch shapes
 plus author/source metadata. The metadata is kept in each batch so later tickets
 can compare generation by author.
+
+## Mini Transformer Decoder
+
+Ticket 5 adds a small GPT-style decoder in plain PyTorch. The model includes
+token embeddings, positional embeddings, causal self-attention, feed-forward
+layers, residual connections, layer normalization, and a language-modeling head.
+
+Run the forward-pass smoke check:
+
+```bash
+uv run python scripts/inspect_model_forward.py
+```
+
+The command creates random token ids, runs a forward pass, and checks that the
+logits have shape `[batch, block, vocab]`. The default smoke model is deliberately
+small so later local training experiments can run on a laptop.
 
 ## Planned Outputs
 
