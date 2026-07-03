@@ -185,7 +185,7 @@ Target commit:
 
 ## Ticket 9: SentencePiece Comparison
 
-Status: `TODO`
+Status: `DONE`
 
 Goal:
 Compare the self-made character tokenizer with SentencePiece.

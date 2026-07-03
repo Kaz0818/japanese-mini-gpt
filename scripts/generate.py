@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from mini_transformer.char_tokenizer import CharTokenizer
 from mini_transformer.model import MiniTransformerConfig, MiniTransformerDecoder
+from mini_transformer.sentencepiece_tokenizer import SentencePieceTokenizer
 
 
 DEFAULT_CHECKPOINT_PATH = Path("outputs/ticket6_smoke/checkpoint.pt")
@@ -24,6 +25,12 @@ def parse_args() -> argparse.Namespace:
         description="Generate text from a trained mini Transformer checkpoint."
     )
     parser.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT_PATH)
+    parser.add_argument(
+        "--tokenizer-type",
+        choices=("char", "sentencepiece"),
+        default=None,
+        help="Tokenizer format. Defaults to the checkpoint metadata, then char.",
+    )
     parser.add_argument("--vocab-path", type=Path, default=None)
     parser.add_argument("--prompt", type=str, default="吾輩は")
     parser.add_argument("--max-new-tokens", type=int, default=80)
@@ -87,6 +94,33 @@ def resolve_vocab_path(
     if "vocab_path" in checkpoint:
         return Path(str(checkpoint["vocab_path"]))
     return DEFAULT_VOCAB_PATH
+
+
+def resolve_tokenizer_type(
+    requested_tokenizer_type: str | None,
+    checkpoint: dict[str, object],
+) -> str:
+    if requested_tokenizer_type is not None:
+        return requested_tokenizer_type
+    if "tokenizer_type" in checkpoint:
+        return str(checkpoint["tokenizer_type"])
+
+    training_config = checkpoint.get("training_config")
+    if isinstance(training_config, dict) and "tokenizer_type" in training_config:
+        return str(training_config["tokenizer_type"])
+    return "char"
+
+
+def load_tokenizer(
+    *,
+    tokenizer_type: str,
+    vocab_path: Path,
+) -> CharTokenizer | SentencePieceTokenizer:
+    if tokenizer_type == "char":
+        return CharTokenizer.load(vocab_path)
+    if tokenizer_type == "sentencepiece":
+        return SentencePieceTokenizer.load(vocab_path)
+    raise ValueError(f"Unsupported tokenizer_type: {tokenizer_type}")
 
 
 def filter_logits(
@@ -184,7 +218,8 @@ def main() -> None:
 
     model, checkpoint = load_checkpoint_model(args.checkpoint, device)
     vocab_path = resolve_vocab_path(args.vocab_path, checkpoint)
-    tokenizer = CharTokenizer.load(vocab_path)
+    tokenizer_type = resolve_tokenizer_type(args.tokenizer_type, checkpoint)
+    tokenizer = load_tokenizer(tokenizer_type=tokenizer_type, vocab_path=vocab_path)
 
     prompt_token_ids = tokenizer.encode(args.prompt, add_bos=True, add_eos=False)
     generated_token_ids = generate_token_ids(
@@ -203,6 +238,7 @@ def main() -> None:
     lines = [
         f"device={device.type}",
         f"checkpoint={args.checkpoint}",
+        f"tokenizer_type={tokenizer_type}",
         f"vocab_path={vocab_path}",
         f"prompt={args.prompt}",
         f"temperature={args.temperature}",

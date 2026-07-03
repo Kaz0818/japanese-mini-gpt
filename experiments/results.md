@@ -165,3 +165,230 @@ Next useful experiment:
 Run a longer shared configuration for all authors, then compare examples from
 the same prompt and multiple seeds. Ticket 9 should also test whether
 SentencePiece reduces the rare-character and word-boundary failure modes.
+
+## Character Tokenizer Baseline Before SentencePiece
+
+Date: 2026-07-02
+
+Goal:
+Establish a stronger character-tokenizer baseline before changing the tokenizer
+in Ticket 9. Earlier runs suggested that `block_size=64` and `block_size=128`
+plateaued near validation loss `3.1`, while `block_size=256` improved into the
+`2.9` range. A later `block_size=256` run with `dropout=0.2` reached roughly
+`2.74`, so this run checks whether the same setting still benefits from longer
+training.
+
+### Setup
+
+Reported configuration:
+
+- Tokenizer: self-made character tokenizer.
+- `block_size=256`
+- `dropout=0.2`
+- `epochs=80`
+- Learning-rate schedule: warmup followed by cosine decay to `0.00005`.
+
+The full epoch log was pasted manually on 2026-07-02. The table below keeps the
+main checkpoints instead of copying all 80 lines.
+
+### Loss Summary
+
+| Epoch | Train loss | Validation loss | Learning rate |
+| ---: | ---: | ---: | ---: |
+| 1 | 6.7059 | 5.2570 | 0.000251497 |
+| 10 | 3.4817 | 3.3619 | 0.000985436 |
+| 20 | 3.1014 | 2.9593 | 0.000899770 |
+| 30 | 2.9245 | 2.7838 | 0.000750972 |
+| 40 | 2.8176 | 2.6850 | 0.000564108 |
+| 50 | 2.7504 | 2.6175 | 0.000370657 |
+| 60 | 2.7097 | 2.5794 | 0.000203205 |
+| 70 | 2.6858 | 2.5610 | 0.000089961 |
+| 80 | 2.6752 | 2.5512 | 0.000050000 |
+
+Best validation loss:
+
+- Best epoch: 80
+- Best validation loss: `2.5512`
+- Final train loss: `2.6752`
+
+### Interpretation
+
+This run is a meaningful improvement over the earlier character-tokenizer
+experiments. The validation loss continued to improve through epoch 80, so the
+previous `dropout=0.2` run had probably not finished converging yet.
+
+The improvement became much smaller near the end:
+
+- Epoch 50 to 80 improved validation loss from `2.6175` to `2.5512`.
+- Epoch 70 to 80 improved validation loss from `2.5610` to `2.5512`.
+
+That pattern suggests that more epochs may still help a little, but the easy
+gain from longer training is mostly used up. The current evidence supports this
+working explanation: for the character tokenizer, the recent bottleneck was
+partly context length and training time, not only tokenizer quality.
+
+This does not prove that the character tokenizer is good enough. It only gives a
+stronger baseline for the next comparison. Ticket 9 should compare
+SentencePiece against this setting and check both validation loss and generation
+readability.
+
+### Dropout Comparison
+
+After the `dropout=0.2` baseline, two lower-dropout runs were reported with the
+same 80 epoch schedule. Both improved validation loss clearly.
+
+| Dropout | Best epoch | Final train loss | Final validation loss |
+| ---: | ---: | ---: | ---: |
+| 0.2 | 80 | 2.6859 | 2.5160 |
+| 0.1 | 80 | 2.3502 | 2.2053 |
+| 0.05 | 80 | 2.1001 | 2.0069 |
+
+The `dropout=0.05` run is the strongest character-tokenizer result so far. The
+validation loss was still improving at the end:
+
+- Epoch 50: `2.1109`
+- Epoch 60: `2.0529`
+- Epoch 70: `2.0213`
+- Epoch 80: `2.0069`
+
+This makes the earlier diagnosis more specific. The model was not only limited
+by context length. With this data size and model size, `dropout=0.2` and
+`dropout=0.1` were still regularizing the model more than necessary. Lowering
+dropout allowed the model to fit useful character and phrase patterns without
+showing validation loss degradation within 80 epochs.
+
+### Next Comparison
+
+Use `dropout=0.05` as the current character-tokenizer baseline, then check
+generation examples from the best checkpoint before changing the tokenizer.
+Ticket 9 can then compare SentencePiece against this stronger baseline.
+
+Avoid tuning too many more character-tokenizer settings before Ticket 9. A
+`dropout=0.0` run could be useful as an overfitting check, but it should be
+treated as optional. The more important next question is whether SentencePiece
+improves readability and failure modes beyond this lower-dropout character
+baseline.
+
+## Ticket 9: SentencePiece Comparison
+
+Date: 2026-07-03
+
+Goal:
+Add a SentencePiece tokenizer path and compare it against the existing character
+tokenizer in a small smoke run.
+
+### Setup
+
+SentencePiece tokenizer command:
+
+```bash
+uv run python scripts/train_sentencepiece_tokenizer.py \
+  --model-path data/tokenizers/ticket9_sentencepiece_unigram.model \
+  --vocab-size 4000 \
+  --model-type unigram \
+  --sample 吾輩は猫である。
+```
+
+The script trained a SentencePiece Unigram model from the 9 processed local text
+records. The sample round trip succeeded:
+
+```text
+sample=吾輩は猫である。
+token_ids=[2, 21, 350, 213, 45, 6, 3]
+decoded=吾輩は猫である。
+```
+
+The first attempted smoke used `vocab_size=1000`, but that was too small for
+this corpus at `character_coverage=0.9995`: SentencePiece needed about 3,000
+required character pieces before it could add learned subword pieces. The smoke
+therefore uses `vocab_size=4000`.
+
+### Training Commands
+
+Character tokenizer smoke:
+
+```bash
+uv run python scripts/train.py \
+  --tokenizer-type char \
+  --vocab-path data/tokenizers/char_vocab.json \
+  --output-dir outputs/ticket9_smoke/char \
+  --block-size 64 \
+  --stride 64 \
+  --batch-size 4 \
+  --embedding-dim 64 \
+  --num-layers 2 \
+  --num-heads 4 \
+  --feed-forward-dim 128 \
+  --dropout 0.1 \
+  --epochs 2 \
+  --learning-rate 0.001 \
+  --scheduler cosine \
+  --warmup-ratio 0.1 \
+  --min-learning-rate 0.0001 \
+  --max-train-batches 5 \
+  --max-validation-batches 2
+```
+
+SentencePiece smoke used the same model and training settings, changing only:
+
+```bash
+--tokenizer-type sentencepiece
+--vocab-path data/tokenizers/ticket9_sentencepiece_unigram.model
+--output-dir outputs/ticket9_smoke/sentencepiece
+```
+
+### Smoke Metrics
+
+These numbers only verify the comparison path. They are not a quality claim
+because the run used only 2 epochs and 5 train batches per epoch.
+
+| Tokenizer | Vocab size | Dataset examples | Best epoch | Final train loss | Final validation loss |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Character | 3,458 | 11,902 | 2 | 8.2018 | 8.1395 |
+| SentencePiece Unigram | 4,000 | 7,836 | 2 | 8.3962 | 8.4458 |
+
+The validation losses are also not perfectly comparable as absolute language
+quality scores. Character tokens and SentencePiece tokens represent different
+units, and one `block_size=64` window covers more original text when each token
+can represent a subword. The useful signal from this smoke run is that both
+tokenizer paths train and generate through the same model interface.
+
+### Generation Examples
+
+Both examples used:
+
+```bash
+uv run python scripts/generate.py \
+  --checkpoint outputs/ticket9_smoke/<tokenizer>/best_checkpoint.pt \
+  --prompt 吾輩は \
+  --max-new-tokens 30 \
+  --temperature 0.8 \
+  --top-k 20
+```
+
+Character tokenizer:
+
+```text
+吾輩は肥多埒潮座楼陥増詣犇詳麼忌弁獅江長尾饉駝種版南癪細籐朱聡割碌
+```
+
+SentencePiece Unigram:
+
+```text
+吾輩は呈翰判T瞭乃窪芋んだろう綾脂のである吐年猛通り上葵暖虻れた後ありましたをもってとにかく範聡笑いながら箸毎日
+```
+
+### Interpretation
+
+The short SentencePiece smoke output still contains broken text and rare
+characters, but it also emits longer phrase-like pieces such as `んだろう`,
+`のである`, `通り上`, `れた後`, and `ありました`. That is the expected difference
+from the character tokenizer: SentencePiece can represent multi-character
+patterns, while the character tokenizer must learn every phrase composition from
+single-character steps.
+
+This ticket should not replace the stronger character-tokenizer baseline above.
+It adds the code path needed for a fair longer run. The next meaningful
+experiment is to train SentencePiece with the stronger baseline settings used by
+the best character run, then compare validation trend and generation readability
+with the same prompts and sampling settings.

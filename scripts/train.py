@@ -29,6 +29,7 @@ from mini_transformer.language_dataset import (
     load_text_records,
 )
 from mini_transformer.model import MiniTransformerConfig, MiniTransformerDecoder
+from mini_transformer.sentencepiece_tokenizer import SentencePieceTokenizer
 
 
 DEFAULT_DATA_DIR = Path("data/processed")
@@ -39,6 +40,7 @@ DEFAULT_OUTPUT_DIR = Path("outputs/ticket6_smoke")
 @dataclass(frozen=True)
 class TrainingConfig:
     data_dir: Path
+    tokenizer_type: str
     vocab_path: Path
     output_dir: Path
     block_size: int
@@ -72,6 +74,12 @@ def parse_args() -> argparse.Namespace:
         description="Train the mini Transformer with a plain PyTorch loop."
     )
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
+    parser.add_argument(
+        "--tokenizer-type",
+        choices=("char", "sentencepiece"),
+        default="char",
+        help="Tokenizer format used by --vocab-path.",
+    )
     parser.add_argument("--vocab-path", type=Path, default=DEFAULT_VOCAB_PATH)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--block-size", type=int, default=64)
@@ -177,13 +185,29 @@ def choose_device(requested_device: str) -> torch.device:
     return torch.device("cpu")
 
 
-def load_or_build_tokenizer(records: list, vocab_path: Path) -> CharTokenizer:
-    if vocab_path.exists():
-        return CharTokenizer.load(vocab_path)
+def load_or_build_tokenizer(
+    records: list,
+    *,
+    tokenizer_type: str,
+    vocab_path: Path,
+) -> CharTokenizer | SentencePieceTokenizer:
+    if tokenizer_type == "sentencepiece":
+        if not vocab_path.exists():
+            raise FileNotFoundError(
+                f"SentencePiece model not found: {vocab_path}. "
+                "Run `uv run python scripts/train_sentencepiece_tokenizer.py` first."
+            )
+        return SentencePieceTokenizer.load(vocab_path)
 
-    tokenizer = CharTokenizer.from_texts([record.text for record in records])
-    tokenizer.save(vocab_path)
-    return tokenizer
+    if tokenizer_type == "char":
+        if vocab_path.exists():
+            return CharTokenizer.load(vocab_path)
+
+        tokenizer = CharTokenizer.from_texts([record.text for record in records])
+        tokenizer.save(vocab_path)
+        return tokenizer
+
+    raise ValueError(f"Unsupported tokenizer_type: {tokenizer_type}")
 
 
 def move_batch_to_device(
@@ -350,6 +374,7 @@ def save_checkpoint(
             "model_state_dict": model.state_dict(),
             "model_config": asdict(model_config),
             "training_config": json_ready_config(training_config),
+            "tokenizer_type": training_config.tokenizer_type,
             "vocab_path": str(vocab_path),
             "history": history,
             "checkpoint_type": checkpoint_type,
@@ -459,6 +484,7 @@ def main() -> None:
 
     training_config = TrainingConfig(
         data_dir=args.data_dir,
+        tokenizer_type=args.tokenizer_type,
         vocab_path=args.vocab_path,
         output_dir=args.output_dir,
         block_size=args.block_size,
@@ -488,7 +514,11 @@ def main() -> None:
     )
 
     records = load_text_records(training_config.data_dir)
-    tokenizer = load_or_build_tokenizer(records, training_config.vocab_path)
+    tokenizer = load_or_build_tokenizer(
+        records,
+        tokenizer_type=training_config.tokenizer_type,
+        vocab_path=training_config.vocab_path,
+    )
     dataset = LanguageModelingDataset(
         records,
         tokenizer,

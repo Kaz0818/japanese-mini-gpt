@@ -342,10 +342,69 @@ rare kanji jumps, punctuation loops, small per-author datasets, character
 tokenizer limits, short context length, small model size, short training time,
 and sampling randomness.
 
+## SentencePiece Comparison
+
+Ticket 9 adds an optional SentencePiece tokenizer path. The character tokenizer
+remains the default, so older commands still work. To train a SentencePiece
+Unigram model from the processed local texts:
+
+```bash
+uv run python scripts/train_sentencepiece_tokenizer.py \
+  --model-path data/tokenizers/ticket9_sentencepiece_unigram.model \
+  --vocab-size 4000 \
+  --model-type unigram
+```
+
+The generated `.model` and `.vocab` files live under `data/`, which is ignored
+by Git. The default `vocab-size` is 4000 because this Japanese corpus has enough
+distinct characters that smaller vocabularies can be smaller than the required
+covered character set.
+
+Train with SentencePiece by passing the tokenizer type and model path:
+
+```bash
+uv run python scripts/train.py \
+  --tokenizer-type sentencepiece \
+  --vocab-path data/tokenizers/ticket9_sentencepiece_unigram.model \
+  --output-dir outputs/ticket9_smoke/sentencepiece \
+  --block-size 64 \
+  --stride 64 \
+  --batch-size 4 \
+  --embedding-dim 64 \
+  --num-layers 2 \
+  --num-heads 4 \
+  --feed-forward-dim 128 \
+  --dropout 0.1 \
+  --epochs 2 \
+  --learning-rate 0.001 \
+  --scheduler cosine \
+  --warmup-ratio 0.1 \
+  --min-learning-rate 0.0001 \
+  --max-train-batches 5 \
+  --max-validation-batches 2
+```
+
+Checkpoints save `tokenizer_type`, so generation can usually restore the right
+tokenizer automatically:
+
+```bash
+uv run python scripts/generate.py \
+  --checkpoint outputs/ticket9_smoke/sentencepiece/best_checkpoint.pt \
+  --prompt 吾輩は \
+  --max-new-tokens 30 \
+  --temperature 0.8 \
+  --top-k 20
+```
+
+See [experiments/results.md](experiments/results.md) for the smoke comparison.
+The short run proves the SentencePiece path works, but it is not a final quality
+claim. Token-level losses from character and SentencePiece tokenizers are not
+directly equivalent because the tokens cover different amounts of text.
+
 ## Planned Outputs
 
 - A reproducible data preparation pipeline for Aozora Bunko-style texts.
-- A character tokenizer and a later SentencePiece tokenizer comparison.
+- A character tokenizer and a SentencePiece tokenizer comparison.
 - A small GPT-style Transformer decoder.
 - Training metrics and loss curve plots.
 - Generated text examples by author and sampling settings.

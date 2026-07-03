@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 import torch
 from torch.utils.data import DataLoader, Dataset, random_split
-
-from mini_transformer.char_tokenizer import CharTokenizer
 
 
 @dataclass(frozen=True)
@@ -37,6 +36,17 @@ def load_text_records(data_dir: Path) -> list[TextRecord]:
     return records
 
 
+class LanguageTokenizer(Protocol):
+    def encode(
+        self,
+        text: str,
+        *,
+        add_bos: bool = False,
+        add_eos: bool = False,
+    ) -> list[int]:
+        ...
+
+
 @dataclass(frozen=True)
 class LanguageModelingExample:
     input_ids: torch.Tensor
@@ -50,7 +60,7 @@ class LanguageModelingDataset(Dataset[LanguageModelingExample]):
     def __init__(
         self,
         records: list[TextRecord],
-        tokenizer: CharTokenizer,
+        tokenizer: LanguageTokenizer,
         block_size: int,
         stride: int | None = None,
     ) -> None:
