@@ -530,3 +530,153 @@ Prioritize one of these larger, easier-to-explain improvements:
 4. If doing one more SentencePiece experiment, try `vocab_size=2500` with
    `character_coverage=0.995`, but treat it as optional rather than blocking
    progress.
+
+## Ticket 10: Embedding Tying And Generation Comparison
+
+Date: 2026-07-03
+
+Goal:
+Add optional input/output embedding tying and compare character-tokenizer
+generation with a SentencePiece checkpoint trained with embedding tying enabled.
+
+### Code Change
+
+`MiniTransformerDecoder` now accepts `tie_embeddings=True` in
+`MiniTransformerConfig`. When enabled, the output language-modeling head reuses
+the same weight tensor as the token embedding table. This reduces one large
+parameter matrix and gives the input and output token representations a shared
+space.
+
+Smoke verification:
+
+```bash
+uv run python scripts/inspect_model_forward.py \
+  --tie-embeddings \
+  --vocab-size 64 \
+  --block-size 16 \
+  --batch-size 2 \
+  --embedding-dim 32 \
+  --num-layers 1 \
+  --num-heads 4 \
+  --feed-forward-dim 64
+```
+
+Result:
+
+```text
+logits.shape=(2, 16, 64)
+expected_logits_shape=(2, 16, 64)
+tie_embeddings=True
+embedding_weights_shared=True
+```
+
+### SentencePiece Tied Smoke Run
+
+Tokenizer command:
+
+```bash
+uv run python scripts/train_sentencepiece_tokenizer.py \
+  --model-path data/tokenizers/ticket10_sentencepiece_unigram.model \
+  --vocab-size 4000 \
+  --sample 吾輩は猫である。
+```
+
+An attempted `vocab_size=1000` run failed because the required character set was
+larger than the requested vocabulary. The successful run used `vocab_size=4000`
+with the default `character_coverage=0.9995`.
+
+Training command:
+
+```bash
+uv run python scripts/train.py \
+  --tokenizer-type sentencepiece \
+  --vocab-path data/tokenizers/ticket10_sentencepiece_unigram.model \
+  --output-dir outputs/ticket10_quality/sentencepiece_tied \
+  --block-size 64 \
+  --stride 128 \
+  --batch-size 8 \
+  --embedding-dim 64 \
+  --num-layers 2 \
+  --num-heads 4 \
+  --feed-forward-dim 128 \
+  --dropout 0.05 \
+  --tie-embeddings \
+  --epochs 3 \
+  --learning-rate 0.001 \
+  --scheduler cosine \
+  --warmup-ratio 0.1 \
+  --min-learning-rate 0.0001 \
+  --max-train-batches 20 \
+  --max-validation-batches 5
+```
+
+Result:
+
+| Run | Best epoch | Final train loss | Final validation loss | Best validation loss |
+| --- | ---: | ---: | ---: | ---: |
+| Character Ticket 9 smoke | 2 | 8.2018 | 8.1395 | 8.1395 |
+| SentencePiece Ticket 9 smoke | 2 | 8.3962 | 8.4458 | 8.4458 |
+| SentencePiece tied Ticket 10 smoke | 3 | 19.4714 | 18.7900 | 18.7900 |
+
+The tied run produced `outputs/ticket10_quality/sentencepiece_tied/best_checkpoint.pt`.
+However, the loss is much worse than the earlier smoke baselines. This means the
+short tied run is useful as a wiring check, not as evidence of better model
+quality.
+
+### Generation Comparison
+
+All examples used the same sampling settings:
+
+```bash
+uv run python scripts/generate.py \
+  --checkpoint <checkpoint> \
+  --prompt <prompt> \
+  --max-new-tokens 80 \
+  --temperature 0.8 \
+  --top-k 20 \
+  --top-p 0.9 \
+  --seed 42
+```
+
+Prompt `吾輩は`, character checkpoint:
+
+```text
+吾輩は肥多埒潮座楼陥増詣犇詳麼忌弁獅江長尾饉駝種版南癪細籐朱聡血醺鼻ヒ人導打私獰鏡3八蟀憬晰極羅栗罰碌台笹摧妹北巌e寒竣柴桐戒弛貌最鶯任類鮨璧餓雅袂葭貰ビ梁蟻作薨楽b
+```
+
+Prompt `吾輩は`, SentencePiece tied checkpoint:
+
+```text
+吾輩は体体体体体体迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は迷亭は
+```
+
+Prompt `私は`, character checkpoint:
+
+```text
+私は・鈴妻ぶ<unk>貪妬遅歌召匿興抽完マ朔揺畏坐速欺喫蟾絃憧副遮薩検聞十溌候邸貰強暖芒決忽鎬考聡羅箒蹟腥蜂插g府歌懲狆噂俺虫旅桐デ筍廷叔弛任類鮨璧餓雅否薪貰緬硝放俥壁習
+```
+
+Prompt `私は`, SentencePiece tied checkpoint:
+
+```text
+私は拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙拙
+```
+
+### Interpretation
+
+Embedding tying itself is now implemented and verified, but this short
+SentencePiece tied experiment did not improve generation quality. It changed
+the failure mode:
+
+- The character checkpoint still jumps through rare characters, Latin letters,
+  and `<unk>`-like artifacts.
+- The SentencePiece tied checkpoint emits recognizable pieces such as `迷亭は`,
+  but collapses into repeated phrase pieces.
+- The high validation loss suggests that this tied configuration needs a longer
+  and better-tuned run before it can be judged fairly.
+
+The honest conclusion is that Ticket 10 improved the code path and comparison
+discipline, not the generated prose in this smoke run. For a real quality
+attempt, reuse the stronger Ticket 9 main-run scale, lower the learning rate for
+the tied model, and compare against the best character and best untied
+SentencePiece checkpoints with multiple seeds.

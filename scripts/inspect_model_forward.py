@@ -25,6 +25,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-heads", type=int, default=4)
     parser.add_argument("--feed-forward-dim", type=int, default=256)
     parser.add_argument("--dropout", type=float, default=0.0)
+    parser.add_argument(
+        "--tie-embeddings",
+        action="store_true",
+        help="Verify shared token embedding and output projection weights.",
+    )
     parser.add_argument("--seed", type=int, default=42)
     return parser.parse_args()
 
@@ -45,6 +50,7 @@ def main() -> None:
         num_heads=args.num_heads,
         feed_forward_dim=args.feed_forward_dim,
         dropout=args.dropout,
+        tie_embeddings=args.tie_embeddings,
     )
     model = MiniTransformerDecoder(config)
     model.eval()
@@ -64,6 +70,15 @@ def main() -> None:
     print(f"logits.shape={tuple(logits.shape)}")
     print(f"expected_logits_shape={expected_shape}")
     print(f"parameter_count={count_parameters(model):,}")
+    print(f"tie_embeddings={args.tie_embeddings}")
+    if args.tie_embeddings:
+        shared_storage = (
+            model.language_modeling_head.weight.data_ptr()
+            == model.token_embedding.weight.data_ptr()
+        )
+        print(f"embedding_weights_shared={shared_storage}")
+        if not shared_storage:
+            raise RuntimeError("Expected embedding weights to be shared.")
 
     if tuple(logits.shape) != expected_shape:
         raise RuntimeError(

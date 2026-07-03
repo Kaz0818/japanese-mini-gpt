@@ -52,6 +52,7 @@ class TrainingConfig:
     num_heads: int
     feed_forward_dim: int
     dropout: float
+    tie_embeddings: bool
     learning_rate: float
     scheduler: str
     warmup_steps: int | None
@@ -91,6 +92,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-heads", type=int, default=4)
     parser.add_argument("--feed-forward-dim", type=int, default=512)
     parser.add_argument("--dropout", type=float, default=0.1)
+    parser.add_argument(
+        "--tie-embeddings",
+        action="store_true",
+        help="Share token embedding weights with the output language-modeling head.",
+    )
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument(
         "--scheduler",
@@ -496,6 +502,7 @@ def main() -> None:
         num_heads=args.num_heads,
         feed_forward_dim=args.feed_forward_dim,
         dropout=args.dropout,
+        tie_embeddings=args.tie_embeddings,
         learning_rate=args.learning_rate,
         scheduler=args.scheduler,
         warmup_steps=args.warmup_steps,
@@ -540,6 +547,7 @@ def main() -> None:
         num_heads=training_config.num_heads,
         feed_forward_dim=training_config.feed_forward_dim,
         dropout=training_config.dropout,
+        tie_embeddings=training_config.tie_embeddings,
     )
     model = MiniTransformerDecoder(model_config).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_config.learning_rate)

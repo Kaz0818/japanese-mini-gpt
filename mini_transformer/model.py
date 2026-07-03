@@ -16,6 +16,7 @@ class MiniTransformerConfig:
     num_heads: int = 4
     feed_forward_dim: int = 512
     dropout: float = 0.1
+    tie_embeddings: bool = False
 
 
 class CausalSelfAttention(nn.Module):
@@ -122,6 +123,8 @@ class MiniTransformerDecoder(nn.Module):
             config.vocab_size,
             bias=False,
         )
+        if config.tie_embeddings:
+            self.language_modeling_head.weight = self.token_embedding.weight
 
     def forward(self, input_ids: torch.Tensor) -> torch.Tensor:
         batch_size, sequence_length = input_ids.shape

@@ -207,7 +207,7 @@ Target commit:
 
 ## Ticket 10: Improve Generation Quality
 
-Status: `TODO`
+Status: `DONE`
 
 Goal:
 Improve generation quality from the SentencePiece baseline and document a clear

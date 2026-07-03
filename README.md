@@ -19,13 +19,17 @@ settings.
 
 ## Current Status
 
-Ticket 8 is complete. The project now has a small reproducible Aozora Bunko data
-preparation pipeline, a self-made character tokenizer, and next-token
-language-modeling batches, plus a small GPT-style decoder for forward-pass
-smoke checks, a plain PyTorch training loop, checkpoint-based text generation,
-and a first author-style comparison note.
+Ticket 10 is complete. The project now has a small reproducible Aozora Bunko
+data preparation pipeline, character and SentencePiece tokenizers, next-token
+language-modeling batches, a small GPT-style decoder, a plain PyTorch training
+loop, checkpoint-based text generation, sampling comparisons, and optional
+input/output embedding tying.
 
-SentencePiece comparison will be added in a later ticket.
+The latest generation-quality experiment verified embedding tying and compared
+character and SentencePiece checkpoints with the same prompts and sampling
+settings. The short tied SentencePiece run did not improve prose quality; it
+collapsed into repeated phrase pieces, so the result is documented as a useful
+failure analysis rather than a quality claim.
 
 ## Workflow
 
@@ -401,11 +405,50 @@ The short run proves the SentencePiece path works, but it is not a final quality
 claim. Token-level losses from character and SentencePiece tokenizers are not
 directly equivalent because the tokens cover different amounts of text.
 
+## Embedding Tying
+
+Ticket 10 adds optional input/output embedding tying. This shares the token
+embedding table with the output language-modeling head:
+
+```bash
+uv run python scripts/inspect_model_forward.py --tie-embeddings
+```
+
+Train with tied embeddings by adding `--tie-embeddings`:
+
+```bash
+uv run python scripts/train.py \
+  --tokenizer-type sentencepiece \
+  --vocab-path data/tokenizers/ticket10_sentencepiece_unigram.model \
+  --output-dir outputs/ticket10_quality/sentencepiece_tied \
+  --block-size 64 \
+  --stride 128 \
+  --batch-size 8 \
+  --embedding-dim 64 \
+  --num-layers 2 \
+  --num-heads 4 \
+  --feed-forward-dim 128 \
+  --dropout 0.05 \
+  --tie-embeddings \
+  --epochs 3 \
+  --learning-rate 0.001 \
+  --scheduler cosine \
+  --warmup-ratio 0.1 \
+  --min-learning-rate 0.0001 \
+  --max-train-batches 20 \
+  --max-validation-batches 5
+```
+
+This command is a smoke-scale wiring check. See
+[experiments/results.md](experiments/results.md) for the before/after generation
+examples and the remaining failure modes.
+
 ## Planned Outputs
 
 - A reproducible data preparation pipeline for Aozora Bunko-style texts.
 - A character tokenizer and a SentencePiece tokenizer comparison.
 - A small GPT-style Transformer decoder.
+- Optional input/output embedding tying.
 - Training metrics and loss curve plots.
 - Generated text examples by author and sampling settings.
 - A written failure analysis suitable for a portfolio README or experiment note.
