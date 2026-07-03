@@ -392,3 +392,141 @@ It adds the code path needed for a fair longer run. The next meaningful
 experiment is to train SentencePiece with the stronger baseline settings used by
 the best character run, then compare validation trend and generation readability
 with the same prompts and sampling settings.
+
+## SentencePiece Unigram Main Run
+
+Date: 2026-07-03
+
+Goal:
+Train a stronger SentencePiece model after the smoke test and check whether it
+improves generation behavior compared with the character tokenizer failures.
+
+### Tokenizer
+
+Tokenizer command used in Colab:
+
+```bash
+uv run python scripts/train_sentencepiece_tokenizer.py \
+  --model-path data/tokenizers/sentencepiece_unigram_vocab3000_cov998.model \
+  --vocab-size 3000 \
+  --model-type unigram \
+  --character-coverage 0.998
+```
+
+This tokenizer is smaller than the first 4000-vocabulary smoke tokenizer. The
+change mattered: a previous run accidentally reused the old tokenizer path, so
+the validation curve did not reflect the new vocabulary. The corrected training
+run below used:
+
+```text
+vocab_path=data/tokenizers/sentencepiece_unigram_vocab3000_cov998.model
+vocab_size=3000
+```
+
+### Training Command
+
+```bash
+uv run python scripts/train.py \
+  --tokenizer-type sentencepiece \
+  --vocab-path data/tokenizers/sentencepiece_unigram_vocab3000_cov998.model \
+  --output-dir outputs/sentencepiece_unigram_dropout0.1_v2 \
+  --block-size 384 \
+  --stride 384 \
+  --batch-size 64 \
+  --embedding-dim 128 \
+  --num-layers 4 \
+  --num-heads 4 \
+  --feed-forward-dim 512 \
+  --dropout 0.1 \
+  --epochs 50 \
+  --learning-rate 0.0005 \
+  --scheduler cosine \
+  --early-stopping-patience 8 \
+  --early-stopping-min-delta 0.001 \
+  --warmup-ratio 0.05 \
+  --min-learning-rate 0.00005
+```
+
+### Loss Summary
+
+| Epoch | Train loss | Validation loss | Learning rate |
+| ---: | ---: | ---: | ---: |
+| 1 | 8.0613 | 7.7877 | 0.000210000 |
+| 10 | 6.0134 | 5.9516 | 0.000472526 |
+| 20 | 5.3304 | 5.3040 | 0.000364700 |
+| 30 | 5.0099 | 5.0500 | 0.000219045 |
+| 40 | 4.8807 | 4.9606 | 0.000096987 |
+| 50 | 4.8356 | 4.9311 | 0.000050000 |
+
+Best validation loss:
+
+- Best epoch: 50
+- Best validation loss: `4.9311`
+- Final train loss: `4.8356`
+
+The validation loss was still improving at epoch 50, but the improvement had
+become gradual. The last 10 epochs improved from `4.9606` to `4.9311`, so this
+run is useful as a SentencePiece baseline even if longer training might still
+help slightly.
+
+Token-level loss is not directly comparable with the character-tokenizer loss,
+because the two tokenizers define different prediction units. A SentencePiece
+token can represent several characters, so the more important comparison here is
+the generated text and failure pattern.
+
+### Generation
+
+Generation command:
+
+```bash
+uv run python scripts/generate.py \
+  --checkpoint outputs/sentencepiece_unigram_dropout0.1_v2/best_checkpoint.pt \
+  --prompt 吾輩は \
+  --max-new-tokens 120 \
+  --temperature 0.8 \
+  --top-k 20 \
+  --top-p 0.9
+```
+
+Generated example:
+
+```text
+吾輩はこのひとが、いまは、と、私のき、自分は、そうして、ひとのひとのに、自分の、いま、お酒を、いまから、自分には、そのひとりに、とは、自分は、ひとり、つまって、それは、おか、いまに、そのひとが、お酒が、自分に、ひとりで、お母さまの、いまの、お母さまが、自分は、 「さまが、 「、おやらり、自分は、おっし、お母さまは、自分に、 「、そうして、おおく、自分に、そののお
+```
+
+### Interpretation
+
+This output is still not coherent Japanese prose, but it is a clear improvement
+over the earlier character-tokenizer failure mode. The character tokenizer often
+collapsed into repeated characters, punctuation loops, or rare kanji sequences.
+The SentencePiece output instead contains phrase-like units such as `このひとが`,
+`自分は`, `そうして`, `お酒を`, `ひとりで`, and `お母さま`.
+
+The remaining failure mode is now different:
+
+- The model repeats common phrase fragments such as `自分`, `ひと`, and `いま`.
+- Sentence-level structure is weak, so phrases are stitched together without a
+  stable meaning.
+- Some broken fragments remain, such as `私のき`, `おやらり`, and `そののお`.
+- Quote punctuation appears, but the dialogue structure is not controlled.
+
+This suggests that SentencePiece helped the tokenizer-level bottleneck: the
+model can now emit multi-character Japanese fragments more easily. The next
+bottleneck is likely model/data scale and sequence-level coherence, not only
+tokenization.
+
+### Next Step
+
+This is good enough as the Ticket 9 SentencePiece baseline. More tuning could
+improve it, but the most useful next work is not another small tokenizer tweak.
+Prioritize one of these larger, easier-to-explain improvements:
+
+1. Add tied input/output embeddings to reduce parameters and improve token
+   sharing.
+2. Add a cleaner config system so experiment settings and tokenizer paths cannot
+   be mixed up.
+3. Compare generation from the best character checkpoint and this SentencePiece
+   checkpoint with the same prompts and sampling settings.
+4. If doing one more SentencePiece experiment, try `vocab_size=2500` with
+   `character_coverage=0.995`, but treat it as optional rather than blocking
+   progress.
