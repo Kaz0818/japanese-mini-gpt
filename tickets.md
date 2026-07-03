@@ -204,3 +204,30 @@ Done criteria:
 
 Target commit:
 `feat: add sentencepiece tokenizer comparison`
+
+## Ticket 10: Improve Generation Quality
+
+Status: `TODO`
+
+Goal:
+Improve generation quality from the SentencePiece baseline and document a clear
+before/after comparison against the character tokenizer.
+
+Tasks:
+- Compare the best character-tokenizer checkpoint and the best SentencePiece
+  checkpoint with the same prompts and sampling settings.
+- Add optional input/output embedding tying to `MiniTransformerDecoder`.
+- Train a SentencePiece model with embedding tying enabled.
+- Generate examples with the same prompts, temperature, top-k, and top-p settings.
+- Document improvements, remaining failure modes, and representative examples in
+  `experiments/results.md`.
+
+Done criteria:
+- Embedding tying has a smoke check or forward-pass verification.
+- A SentencePiece training run with embedding tying produces `best_checkpoint.pt`.
+- Character and SentencePiece generations are compared using the same prompts.
+- The result notes explain both improvements and remaining incoherence honestly.
+- Changes are verified and committed locally.
+
+Target commit:
+`feat: improve generation quality`
