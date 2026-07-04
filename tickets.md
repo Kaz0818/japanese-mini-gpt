@@ -231,3 +231,39 @@ Done criteria:
 
 Target commit:
 `feat: improve generation quality`
+
+## Ticket 11: Portfolio README Finalization
+
+Status: `TODO`
+
+Goal:
+Summarize the project through Ticket 10 in `README.md` so a portfolio reader can
+understand the learning value, experiment results, reproduction commands, and
+remaining limitations without reading every detailed experiment log.
+
+Tasks:
+- Update the README `Current Status` section for the latest 100 epoch tied
+  SentencePiece baseline.
+- Add the final recommended generation command based on the current best
+  checkpoint.
+- Add short representative generation examples for at least `吾輩は` and `私は`
+  from `experiments/results.md`.
+- Summarize the improvement path: character tokenizer, SentencePiece, embedding
+  tying, stable initialization, 100 epoch training, and temperature comparison.
+- Clearly document remaining limitations: phrase repetition, grammar errors, and
+  weak long-range coherence.
+- Keep `experiments/results.md` as the detailed experiment log and the README as
+  the concise portfolio summary.
+
+Done criteria:
+- The README alone explains what was built, how to run it, how far generation
+  quality improved, and what still fails.
+- The representative command targets the current best checkpoint.
+- The README includes concise `吾輩は` and `私は` examples without duplicating the
+  full experiment log.
+- The README links to `experiments/results.md` for details.
+- `git diff --check` passes.
+- Changes are verified and committed locally.
+
+Target commit:
+`docs: finalize portfolio readme`
