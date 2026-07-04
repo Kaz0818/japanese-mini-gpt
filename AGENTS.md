@@ -8,9 +8,15 @@ beginner-to-intermediate reader who wants to explain each part in an interview.
 
 - Work on exactly one ticket from `tickets.md` at a time.
 - Do not start the next ticket until the current ticket is verified and committed.
-- After finishing a ticket, stop and report the commit hash, changed files, and verification commands.
+- After finishing a ticket, report the commit hash, changed files, verification
+  commands, and push result.
 - Keep changes small and tied to the active ticket. Avoid unrelated cleanup.
-- Use local commits as the completion point. This repository currently has no remote.
+- Use local commits plus `git push origin main` as the completion point when
+  verification passes and the worktree contains only intended tracked changes.
+- Do not leave `main` ahead of `origin/main` after a completed task unless the
+  user explicitly asks not to push.
+- If unrelated untracked files exist, leave them untouched and unstaged, and
+  still push the intended committed work when it is otherwise safe.
 
 ## Development Defaults
 
