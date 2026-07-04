@@ -11,7 +11,7 @@ settings.
 
 - Prepare Japanese literary text data in a reproducible way.
 - Start with a self-made character tokenizer.
-- Later compare the character tokenizer with SentencePiece.
+- Compare the character tokenizer with SentencePiece.
 - Implement a small Transformer decoder in plain PyTorch.
 - Train with a visible loss curve.
 - Compare generation with temperature, top-k, and top-p sampling.
@@ -19,17 +19,41 @@ settings.
 
 ## Current Status
 
-Ticket 10 is complete. The project now has a small reproducible Aozora Bunko
-data preparation pipeline, character and SentencePiece tokenizers, next-token
-language-modeling batches, a small GPT-style decoder, a plain PyTorch training
-loop, checkpoint-based text generation, sampling comparisons, and optional
-input/output embedding tying.
+Ticket 11 is complete. The project now has a reproducible Aozora Bunko data
+pipeline, character and SentencePiece tokenizers, language-modeling batches, a
+small GPT-style decoder, a plain PyTorch training loop, checkpoint-based
+generation, sampling comparisons, and optional input/output embedding tying.
 
-The latest generation-quality experiment verified embedding tying and compared
-character and SentencePiece checkpoints with the same prompts and sampling
-settings. The short tied SentencePiece run did not improve prose quality; it
-collapsed into repeated phrase pieces, so the result is documented as a useful
-failure analysis rather than a quality claim.
+The current best baseline is a 100 epoch tied SentencePiece run with stable
+small-weight initialization. It reached validation loss `4.5810` and produced
+phrase-like Japanese fragments, but it still repeats phrases, breaks grammar,
+and loses long-range coherence. Detailed training logs and comparisons are in
+[experiments/results.md](experiments/results.md).
+
+## Best Result Summary
+
+Best run:
+
+- Tokenizer: `data/tokenizers/sentencepiece_unigram_vocab3000_cov998.model`
+- Model: mini Transformer decoder with tied input/output embeddings
+- Initialization: `Embedding` and `Linear` weights initialized with `std=0.02`
+- Training: 100 epochs with cosine decay to `0.00002`
+- Best validation loss: `4.5810`
+
+Improvement path:
+
+```text
+character tokenizer
+-> SentencePiece
+-> embedding tying
+-> stable initialization
+-> 100 epoch training
+-> temperature comparison
+```
+
+The most useful qualitative change is that generation moved from rare-character
+jumps and repeated token collapse toward sentence-like fragments. The model is
+still a learning-scale generator, not a coherent prose model.
 
 ## Workflow
 
@@ -255,6 +279,41 @@ Ticket 7 adds checkpoint-based text generation. The script loads
 vocabulary, encodes a prompt, and repeatedly samples the next token from the last
 position's logits.
 
+Recommended command for the current best checkpoint:
+
+```bash
+uv run python scripts/generate.py \
+  --checkpoint outputs/sentencepiece_unigram_tied_dropout0.1_lr3e-4_v1/best_checkpoint.pt \
+  --prompt 私は \
+  --max-new-tokens 120 \
+  --temperature 0.8 \
+  --top-k 20 \
+  --top-p 0.9 \
+  --seed 42
+```
+
+The general default is `temperature=0.8`, `top-k=20`, and `top-p=0.9`. For the
+prompt `吾輩は`, `temperature=0.7` was more stable in the latest comparison
+because it reduced phrase repetition and topic drift.
+
+Representative examples from the 100 epoch tied SentencePiece checkpoint:
+
+```text
+prompt=吾輩は, temperature=0.7
+吾輩はこの長が、ただ、やが、ただ、一言とうとうときにあろう。
+二尺の中で、三度に上へ出し、これも、三度に、下りとうつまって、
+三十五円の中を、その後に向って、下女に、この時の日本の上って...
+
+prompt=私は, temperature=0.8
+私はこの 一 先生はその日とうた。そうしてその日日、奥さんの中の前に
+その下宿へ行ってくれと、この晩から帰って来て、この家へ行った。
+私はいつまでも、先生をお前から私の室に着いているといった...
+```
+
+These examples are better than the early smoke outputs, but they still show the
+main limitations: repeated phrases, broken grammar, unnatural word connections,
+and weak long-range meaning.
+
 Greedy decoding uses the highest-logit token each step:
 
 ```bash
@@ -408,42 +467,44 @@ directly equivalent because the tokens cover different amounts of text.
 ## Embedding Tying
 
 Ticket 10 adds optional input/output embedding tying. This shares the token
-embedding table with the output language-modeling head:
+embedding table with the output language-modeling head. Explicit small-weight
+initialization is important for tied embeddings; without it, the first larger
+tied run started with an unstable loss scale.
 
 ```bash
 uv run python scripts/inspect_model_forward.py --tie-embeddings
 ```
 
-Train with tied embeddings by adding `--tie-embeddings`:
+The current best run used the SentencePiece tokenizer, tied embeddings, stable
+initialization, and 100 epochs:
 
 ```bash
 uv run python scripts/train.py \
   --tokenizer-type sentencepiece \
-  --vocab-path data/tokenizers/ticket10_sentencepiece_unigram.model \
-  --output-dir outputs/ticket10_quality/sentencepiece_tied \
-  --block-size 64 \
-  --stride 128 \
-  --batch-size 8 \
-  --embedding-dim 64 \
-  --num-layers 2 \
+  --vocab-path data/tokenizers/sentencepiece_unigram_vocab3000_cov998.model \
+  --output-dir outputs/sentencepiece_unigram_tied_dropout0.1_lr3e-4_v1 \
+  --block-size 384 \
+  --stride 384 \
+  --batch-size 64 \
+  --embedding-dim 128 \
+  --num-layers 4 \
   --num-heads 4 \
-  --feed-forward-dim 128 \
-  --dropout 0.05 \
+  --feed-forward-dim 512 \
+  --dropout 0.1 \
   --tie-embeddings \
-  --epochs 3 \
-  --learning-rate 0.001 \
+  --epochs 100 \
+  --learning-rate 0.0003 \
   --scheduler cosine \
-  --warmup-ratio 0.1 \
-  --min-learning-rate 0.0001 \
-  --max-train-batches 20 \
-  --max-validation-batches 5
+  --warmup-ratio 0.05 \
+  --min-learning-rate 0.00002
 ```
 
-This command is a smoke-scale wiring check. See
-[experiments/results.md](experiments/results.md) for the before/after generation
-examples and the remaining failure modes.
+This run reached validation loss `4.5810`, improving over the earlier untied
+SentencePiece baseline of `4.9311`. See
+[experiments/results.md](experiments/results.md) for the full epoch log,
+temperature comparison, generation examples, and failure analysis.
 
-## Planned Outputs
+## Project Outputs
 
 - A reproducible data preparation pipeline for Aozora Bunko-style texts.
 - A character tokenizer and a SentencePiece tokenizer comparison.

@@ -234,7 +234,7 @@ Target commit:
 
 ## Ticket 11: Portfolio README Finalization
 
-Status: `TODO`
+Status: `DONE`
 
 Goal:
 Summarize the project through Ticket 10 in `README.md` so a portfolio reader can
