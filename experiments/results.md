@@ -680,3 +680,88 @@ discipline, not the generated prose in this smoke run. For a real quality
 attempt, reuse the stronger Ticket 9 main-run scale, lower the learning rate for
 the tied model, and compare against the best character and best untied
 SentencePiece checkpoints with multiple seeds.
+
+### Stable Initialization Follow-up
+
+Date: 2026-07-04
+
+The first larger tied-embedding run exposed an initialization problem. Before the
+fix, the tied model started with extremely large losses:
+
+```text
+epoch=1 train_loss=80.0055 validation_loss=78.1898
+epoch=60 train_loss=7.2853 validation_loss=6.5515
+```
+
+The likely cause was that the default `nn.Embedding` initialization was too large
+when reused as the output language-modeling head. The model now initializes
+`Embedding` and `Linear` weights with a small normal distribution
+(`std=0.02`) before tying the input and output weights.
+
+After that fix, the same tied SentencePiece setup started at a normal loss scale
+and improved beyond the previous untied SentencePiece baseline:
+
+```text
+epoch=1 train_loss=7.8879 validation_loss=7.7144
+epoch=10 train_loss=5.8091 validation_loss=5.7352
+epoch=20 train_loss=5.1862 validation_loss=5.1536
+epoch=30 train_loss=4.9124 validation_loss=4.9140
+epoch=40 train_loss=4.7836 validation_loss=4.8128
+epoch=50 train_loss=4.7231 validation_loss=4.7662
+epoch=60 train_loss=4.6959 validation_loss=4.7479
+```
+
+Updated comparison:
+
+| Run | Best validation loss | Notes |
+| --- | ---: | --- |
+| SentencePiece untied main run | 4.9311 | Earlier Ticket 9 baseline |
+| SentencePiece tied before init fix | 6.5515 | Started with loss explosion |
+| SentencePiece tied after init fix | 4.7479 | Best SentencePiece result so far |
+
+This is the first tied-embedding run that should be treated as a real candidate.
+The validation loss kept improving through epoch 60, and the train/validation
+gap stayed small, so there is no strong overfitting signal in this run.
+
+Generation used:
+
+```bash
+uv run python scripts/generate.py \
+  --checkpoint outputs/sentencepiece_unigram_tied_dropout0.1_lr3e-4_v1/best_checkpoint.pt \
+  --prompt <prompt> \
+  --max-new-tokens 120 \
+  --temperature 0.8 \
+  --top-k 20 \
+  --top-p 0.9 \
+  --seed 42
+```
+
+Prompt `吾輩は`:
+
+```text
+吾輩はこの時のは ⁇ は、人間に対する時の方に、この人と、不思う。人間の ⁇ とかかと、大事の中ので、その時分は、人間があろう。人間の中であって、人間の中に、その男が、この所が、人間にかけたるるの人間の所が、その後にあろうとうら、いろしい事をしが、大にあるいならぬと、自慢を ⁇ りに極めずかりのの方
+```
+
+Prompt `私は`:
+
+```text
+私はこの 私は彼の人は、私はその私の心も私のKに、奥さんの生に思議なのです。私は私がお嬢さんに、Kに私はお嬢さんを知って、父の家に対して、父は奥さんに違いっきました。KにKの私の父の私の父が父の私は私の父は私はKの父は私はその後に、彼の父と、私は私はその奥さんと答えたた時も私の心を取り切っていました。私は私の父を書いたのです。私の母に私の父の母の外
+```
+
+Interpretation:
+
+- Stable initialization fixed the tied-embedding loss explosion.
+- The tied model now beats the earlier untied SentencePiece validation loss.
+- Generation moved from repeated token collapse to phrase-like Japanese
+  fragments.
+- The `私は` sample includes corpus-specific terms such as `K`, `奥さん`,
+  `お嬢さん`, `父`, `母`, and `心`, which is a stronger qualitative signal than
+  the earlier smoke output.
+- Remaining failures are still clear: unknown-token output appears as `⁇`,
+  phrase repetition remains common, grammar is unstable, and long-range meaning
+  is not coherent.
+
+Current conclusion:
+Embedding tying is worth keeping, but only with the explicit small-weight
+initialization. The next bottleneck is no longer the tied-output implementation;
+it is sequence-level coherence and decoding behavior.
