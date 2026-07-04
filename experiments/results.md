@@ -812,3 +812,58 @@ Current conclusion:
 Use this 100 epoch tied SentencePiece run as the new baseline. The next useful
 work should evaluate generation quality from this checkpoint before changing
 architecture or tokenizer settings again.
+
+### Temperature Comparison From 100 Epoch Checkpoint
+
+Date: 2026-07-04
+
+The 100 epoch tied SentencePiece checkpoint was sampled with the same prompt,
+`top-k`, `top-p`, and seed while changing only `temperature`.
+
+Shared generation settings:
+
+```bash
+uv run python scripts/generate.py \
+  --checkpoint outputs/sentencepiece_unigram_tied_dropout0.1_lr3e-4_v1/best_checkpoint.pt \
+  --prompt <prompt> \
+  --max-new-tokens 120 \
+  --temperature <0.7|0.8|0.9> \
+  --top-k 20 \
+  --top-p 0.9 \
+  --seed 42
+```
+
+For prompt `吾輩は`, `temperature=0.7` was the best of the three. It was still
+not coherent prose, but it avoided the stronger `内供` repetition seen at
+`temperature=0.8` and the topic drift toward `私` / `父` / `母` seen at
+`temperature=0.9`.
+
+Best `吾輩は` sample:
+
+```text
+吾輩はこの長が、ただ、やが、ただ、一言とうとうときにあろう。 二尺の中で、三度に上へ出し、これも、三度に、下りとうつまって、三十五円の中を、その後に向って、下女に、この時の日本の上って、一体が、三人たちまっている。 次第一度と、二十円の中から、その後を一杯をかに上へは、その上の中
+```
+
+For prompt `私は`, `temperature=0.8` was better than `temperature=0.7`. It kept
+more scene-setting vocabulary such as `先生`, `奥さん`, `下宿`, `私の室`, `父`,
+`母`, and `手紙`. The `temperature=0.7` sample was safer but more repetitive
+around `その日`, `また`, and `自分の家`.
+
+Best `私は` sample:
+
+```text
+私はこの 一 先生はその日とうた。そうしてその日日、奥さんの中の前にその下宿へ行ってくれと、この晩から帰って来て、この家へ行った。 私はいつまでも、先生をお前から私の室に着いているといった。私は私の父の間に、母のお父が父は、父の手紙を呼ぶっていらいなかった。 父を取り合いわざわざわせていた。 「私の父さまと、私の眼も、この母にお父の間に、母のお
+```
+
+Temperature interpretation:
+
+- `0.7` is safer and worked better for `吾輩は`.
+- `0.8` gives more expressive phrase variety and worked better for `私は`.
+- `0.9` adds variety, but in this run it drifted away from the `吾輩は` prompt
+  into unrelated `私` / `父` / `母` fragments.
+
+Current default:
+Use `temperature=0.8`, `top_k=20`, and `top_p=0.9` as the general generation
+default, but use `temperature=0.7` when a prompt shows phrase repetition or topic
+drift. For portfolio examples, it is acceptable to report prompt-specific
+sampling settings instead of forcing one setting for every prompt.
