@@ -765,3 +765,50 @@ Current conclusion:
 Embedding tying is worth keeping, but only with the explicit small-weight
 initialization. The next bottleneck is no longer the tied-output implementation;
 it is sequence-level coherence and decoding behavior.
+
+### Longer 100 Epoch Tied Run
+
+Date: 2026-07-04
+
+The next run kept the same stable tied SentencePiece setup and extended training
+to 100 epochs. This tests whether the epoch 60 model was still undertrained.
+
+Training summary:
+
+```text
+epoch=1 train_loss=7.9275 validation_loss=7.7812 lr=6.3e-05
+epoch=10 train_loss=5.8977 validation_loss=5.8185 lr=0.000298052
+epoch=20 train_loss=5.2023 validation_loss=5.1661 lr=0.000283016
+epoch=30 train_loss=4.8780 validation_loss=4.8808 lr=0.000254649
+epoch=40 train_loss=4.7038 validation_loss=4.7500 lr=0.000216025
+epoch=50 train_loss=4.5943 validation_loss=4.6699 lr=0.00017133
+epoch=60 train_loss=4.5198 validation_loss=4.6301 lr=0.000125408
+epoch=70 train_loss=4.4683 validation_loss=4.6045 lr=8.32336e-05
+epoch=80 train_loss=4.4354 validation_loss=4.5932 lr=4.93783e-05
+epoch=90 train_loss=4.4197 validation_loss=4.5848 lr=2.75106e-05
+epoch=100 train_loss=4.4078 validation_loss=4.5810 lr=2e-05
+```
+
+Updated comparison:
+
+| Run | Epochs | Best validation loss | Notes |
+| --- | ---: | ---: | --- |
+| SentencePiece untied main run | 50 | 4.9311 | Earlier Ticket 9 baseline |
+| SentencePiece tied after init fix | 60 | 4.7479 | First stable tied candidate |
+| SentencePiece tied after init fix | 100 | 4.5810 | Best SentencePiece result so far |
+
+Interpretation:
+
+- Extending training from 60 to 100 epochs improved validation loss from
+  `4.7479` to `4.5810`.
+- The improvement is real but diminishing: epoch 60 to 70 gained `0.0256`,
+  while epoch 90 to 100 gained only `0.0038`.
+- The train/validation gap at epoch 100 is small (`4.4078` vs `4.5810`), so
+  this run still does not show severe overfitting.
+- The learning rate has reached the floor, so another identical extension is
+  unlikely to give a large gain.
+
+Current conclusion:
+Use this 100 epoch tied SentencePiece run as the new baseline. The next useful
+work should evaluate generation quality from this checkpoint before changing
+architecture or tokenizer settings again.
