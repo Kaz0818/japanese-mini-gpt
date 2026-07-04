@@ -123,8 +123,19 @@ class MiniTransformerDecoder(nn.Module):
             config.vocab_size,
             bias=False,
         )
+        self.apply(self._init_weights)
         if config.tie_embeddings:
             self.language_modeling_head.weight = self.token_embedding.weight
+
+    def _init_weights(self, module: nn.Module) -> None:
+        # Keep logits small at the start of training, especially when the input
+        # embedding table is reused as the output projection.
+        if isinstance(module, nn.Linear):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, input_ids: torch.Tensor) -> torch.Tensor:
         batch_size, sequence_length = input_ids.shape
