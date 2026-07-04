@@ -267,3 +267,95 @@ Done criteria:
 
 Target commit:
 `docs: finalize portfolio readme`
+
+## Ticket 12: Generation Quality Summary
+
+Status: `TODO`
+
+Goal:
+Create a concise generation-quality evaluation note that explains what improved,
+what still fails, and how to discuss the final model in a portfolio review or
+interview.
+
+Tasks:
+- Summarize the final baseline: 100 epoch tied SentencePiece run with validation
+  loss `4.5810`.
+- Compare the main qualitative stages: character tokenizer failures,
+  SentencePiece phrase fragments, tied-embedding initialization failure, stable
+  tied run, and temperature comparison.
+- Identify the best representative examples and the sampling settings used for
+  each prompt.
+- Explain remaining failure modes in plain language: phrase repetition, broken
+  grammar, unnatural word connections, and weak long-range coherence.
+- Add interview-ready takeaways: what was learned, what was tried, what worked,
+  and what would be improved next.
+
+Done criteria:
+- The summary is concise enough to review quickly but specific enough to support
+  an interview explanation.
+- The note references real results and commands already recorded in
+  `experiments/results.md`.
+- No new model training or generation implementation is added.
+- `git diff --check` passes.
+- Changes are verified and committed locally.
+
+Target commit:
+`docs: add generation quality summary`
+
+## Ticket 13: Experiment Config Cleanup
+
+Status: `TODO`
+
+Goal:
+Reduce command-copy mistakes by introducing a small, readable way to store and
+reuse common training and generation settings.
+
+Tasks:
+- Add a lightweight config file for the current best SentencePiece training and
+  generation settings.
+- Document which settings belong to training, tokenizer paths, checkpoint paths,
+  and generation sampling.
+- Keep the format beginner-readable and avoid adding a heavy configuration
+  framework.
+- Add a command or documented workflow for using the config to reproduce the
+  current best run or generation examples.
+- Preserve existing CLI behavior so older commands still work.
+
+Done criteria:
+- The best-run settings are visible in one tracked config or documented config
+  example.
+- README or a linked document explains how to use the config.
+- Existing direct CLI commands remain valid.
+- `git diff --check` passes.
+- Changes are verified and committed locally.
+
+Target commit:
+`feat: add experiment config workflow`
+
+## Ticket 14: Repetition Reduction Sampling
+
+Status: `TODO`
+
+Goal:
+Improve generation readability by adding a small sampling option that reduces
+obvious repeated tokens or phrases without changing the trained model.
+
+Tasks:
+- Add an opt-in repetition-control option to `scripts/generate.py`.
+- Keep the default generation behavior unchanged.
+- Compare generation with and without the new option using the current best
+  checkpoint and the same prompts.
+- Document when the option helps and when it makes text worse.
+- Record representative examples and limitations in `experiments/results.md`.
+
+Done criteria:
+- Existing generation commands still work unchanged.
+- The new option has a smoke check or direct generation comparison.
+- Results show whether repetition is reduced for prompts such as `吾輩は` and
+  `私は`.
+- The documentation explains that this is decoding control, not model retraining.
+- `git diff --check` passes.
+- Changes are verified and committed locally.
+
+Target commit:
+`feat: add repetition reduction sampling`
