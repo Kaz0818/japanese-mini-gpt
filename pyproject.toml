@@ -9,5 +9,6 @@ dependencies = [
     "numpy>=2.5.0",
     "sentencepiece>=0.2.1",
     "torch>=2.12.1",
+    "transformers>=4.48.0",
     "wandb>=0.28.0",
 ]

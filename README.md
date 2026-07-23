@@ -19,10 +19,11 @@ before any cross-author comparison.
 
 ## Current Status
 
-Ticket 12 is complete. The project now has a reproducible Aozora Bunko data
+Ticket 17 is complete. The project now has a reproducible Aozora Bunko data
 pipeline, character and SentencePiece tokenizers, language-modeling batches, a
 small GPT-style decoder, a plain PyTorch training loop, checkpoint-based
-generation, sampling comparisons, and optional input/output embedding tying.
+generation, sampling comparisons, optional input/output embedding tying, and a
+separate Hugging Face pretrained-model fine-tuning baseline.
 
 The current best baseline is a 100 epoch tied SentencePiece run with stable
 small-weight initialization. It reached validation loss `4.5810` and produced
@@ -507,6 +508,104 @@ This run reached validation loss `4.5810`, improving over the earlier untied
 SentencePiece baseline of `4.9311`. See
 [experiments/results.md](experiments/results.md) for the full epoch log,
 temperature comparison, generation examples, and failure analysis.
+
+## Hugging Face Pretrained-Model Baseline
+
+Ticket 17 keeps the self-made Transformer above intact and adds a comparison
+baseline based on [rinna/japanese-gpt2-small](https://huggingface.co/rinna/japanese-gpt2-small).
+It is an approximately 0.1B-parameter Japanese GPT-2 model with an MIT license.
+The model card specifies `use_fast=False` and `do_lower_case=True`; both scripts
+apply those settings. The pretrained model and its tokenizer are from rinna, not
+created by this project.
+
+For this baseline, validation is split by work rather than by random windows:
+`道草` (`michikusa.txt`) is validation-only and the remaining nine Natsume works
+are used for training. This prevents text windows from the held-out work leaking
+into the training set.
+
+Run the local smoke check after data preparation. It downloads the pretrained
+model on first use and intentionally processes only a few batches, so it proves
+the pipeline rather than generation quality:
+
+```bash
+uv sync --locked
+uv run python scripts/prepare_aozora.py
+
+uv run python scripts/train_huggingface.py \
+  --output-dir outputs/huggingface_rinna_smoke \
+  --block-size 64 \
+  --batch-size 1 \
+  --gradient-accumulation-steps 1 \
+  --epochs 1 \
+  --max-train-batches 1 \
+  --max-validation-batches 1
+
+uv run python scripts/generate_huggingface.py \
+  --model-dir outputs/huggingface_rinna_smoke/best_model \
+  --prompt 吾輩は \
+  --max-new-tokens 20 \
+  --temperature 0.7 \
+  --top-k 20 \
+  --top-p 0.9 \
+  --seed 42 \
+  --output-path outputs/huggingface_rinna_smoke/generation.txt
+```
+
+The fine-tuning defaults are block size 256, batch size 2, gradient accumulation
+8, 3 epochs, AdamW with learning rate `2e-5`, 10% linear warmup followed by
+cosine decay, and seed 42. The scripts prefer MPS, then CUDA, then CPU. Best
+artifacts are stored under the selected output directory:
+
+- `best_model/`: model and tokenizer in Hugging Face `save_pretrained` format
+- `metrics.json`: split, configuration, and per-epoch losses
+- `loss_curve.png`: train and validation loss plot
+
+For a full GPU run in Google Colab, use separate cells after cloning the
+repository and selecting a GPU runtime:
+
+```bash
+pip install uv
+uv sync --locked
+```
+
+```bash
+uv run python scripts/prepare_aozora.py
+```
+
+```bash
+uv run python scripts/train_huggingface.py \
+  --output-dir outputs/huggingface_rinna_natsume_v1
+```
+
+```bash
+uv run python scripts/generate_huggingface.py \
+  --model-dir outputs/huggingface_rinna_natsume_v1/best_model \
+  --prompt 吾輩は \
+  --max-new-tokens 120 \
+  --temperature 0.7 \
+  --top-k 20 \
+  --top-p 0.9 \
+  --seed 42 \
+  --output-path outputs/huggingface_rinna_natsume_v1/generation_wagahai.txt
+
+uv run python scripts/generate_huggingface.py \
+  --model-dir outputs/huggingface_rinna_natsume_v1/best_model \
+  --prompt 私は \
+  --max-new-tokens 120 \
+  --temperature 0.8 \
+  --top-k 20 \
+  --top-p 0.9 \
+  --seed 42 \
+  --output-path outputs/huggingface_rinna_natsume_v1/generation_watashi.txt
+```
+
+The Hugging Face generator uses `repetition_penalty=1.0` by default so decoding
+does not receive extra repetition control unavailable to the existing baseline.
+You can opt in to it with, for example, `--repetition-penalty 1.1`.
+
+Do not compare the Hugging Face and self-made models by their loss values: they
+use different tokenizers and initial training conditions. Compare generated text
+using the same prompts, seed, temperature, top-k, and top-p settings instead.
 
 ## Project Outputs
 

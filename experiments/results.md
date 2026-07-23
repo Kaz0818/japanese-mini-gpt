@@ -867,3 +867,54 @@ Use `temperature=0.8`, `top_k=20`, and `top_p=0.9` as the general generation
 default, but use `temperature=0.7` when a prompt shows phrase repetition or topic
 drift. For portfolio examples, it is acceptable to report prompt-specific
 sampling settings instead of forcing one setting for every prompt.
+
+## Hugging Face Fine-Tuning Baseline
+
+Date: 2026-07-23
+
+Ticket 17 adds a pretrained-model comparison baseline using
+`rinna/japanese-gpt2-small`. The model and tokenizer are licensed under MIT by
+rinna; this project only fine-tunes a local copy. It uses a whole-work split:
+`michikusa.txt` (`道草`) is held out for validation and the remaining nine
+Natsume Soseki works are training-only.
+
+## Local Smoke Result
+
+The local smoke run uses one epoch, one training batch, and one validation
+batch. Its purpose is to verify downloading, tokenization, work-level splitting,
+backpropagation, `save_pretrained` output, and generation. It is not evidence of
+full-corpus quality or a meaningful validation score.
+
+The tracked repository does not include generated `outputs/` artifacts. The
+verified local run used MPS, block size 64, batch size 1, one accumulation step,
+one epoch, and one train plus one validation batch. It recorded train loss
+`6.0144` and validation loss `5.8487`. These are smoke-only numbers, not a
+full-corpus baseline.
+
+With `吾輩は`, temperature 0.7, top-k 20, top-p 0.9, and seed 42, the saved smoke
+model produced the following continuation (the prompt is retained at the start):
+
+```text
+吾輩は猫である。 猫は人間に飼われ、人間は猫の姿で、人間は猫
+```
+
+The smoke run created:
+
+- `outputs/huggingface_rinna_smoke/best_model/`
+- `outputs/huggingface_rinna_smoke/metrics.json`
+- `outputs/huggingface_rinna_smoke/loss_curve.png`
+
+## Colab Full-Run Comparison Record
+
+After the 3-epoch Colab run, append measured values only. Record the following
+for both the Hugging Face model and the current self-made SentencePiece model:
+
+- training command, hardware, runtime, best epoch, and held-out-data definition;
+- the model's own validation loss, clearly labeled as not directly comparable
+  across tokenizers or pretraining histories;
+- outputs for `吾輩は` at temperature 0.7 and `私は` at temperature 0.8, both with
+  top-k 20, top-p 0.9, and seed 42;
+- qualitative observations: prompt continuation, repetition, grammar, and
+  longer-range coherence;
+- failures or surprising output, without converting a short example into a
+  general quality claim.

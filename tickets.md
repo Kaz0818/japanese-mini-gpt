@@ -412,3 +412,34 @@ Done criteria:
 
 Target commit:
 `data: expand natsume soseki corpus to ten works`
+
+## Ticket 17: Hugging Face Fine-Tuning Baseline
+
+Status: `DONE`
+
+Goal:
+Add a reproducible pretrained-model baseline while preserving the self-made
+Transformer as the main learning implementation.
+
+Tasks:
+- Add `transformers` and plain-PyTorch fine-tuning for
+  `rinna/japanese-gpt2-small`.
+- Hold out `道草` (`michikusa.txt`) as a complete validation work and train on
+  the other nine Natsume Soseki works.
+- Save a Hugging Face standard-format best model, metrics, and a loss curve.
+- Add equivalent Hugging Face generation and document local smoke and Colab GPU
+  commands.
+- Record smoke scope and the comparison protocol without making unmeasured
+  full-training claims.
+
+Done criteria:
+- The train and generation CLIs have help output and the work-level split keeps
+  `michikusa.txt` out of training.
+- A limited-batch smoke run saves `best_model/`, `metrics.json`, and
+  `loss_curve.png`.
+- Generation from the smoke model preserves the given prompt at the start of
+  its output.
+- `git diff --check` passes and the verified change is committed and pushed.
+
+Target commit:
+`feat: add hugging face fine-tuning baseline`
