@@ -2,10 +2,10 @@
 
 Japanese literature text generation project for a learning portfolio.
 
-The goal is to build a small GPT-style Transformer decoder from scratch, train it
-on Japanese literary texts such as works by Natsume Soseki, Akutagawa Ryunosuke,
-and Dazai Osamu, and compare how generation changes by author and sampling
-settings.
+The goal is to build a small GPT-style Transformer decoder from scratch and
+train it on Japanese literary texts. The current reproducible dataset uses five
+works by Natsume Soseki so the model can learn from one consistent author corpus
+before any cross-author comparison.
 
 ## Learning Goals
 
@@ -15,11 +15,11 @@ settings.
 - Implement a small Transformer decoder in plain PyTorch.
 - Train with a visible loss curve.
 - Compare generation with temperature, top-k, and top-p sampling.
-- Record author-style examples, failure cases, and why the Japanese output can become strange.
+- Record author-specific examples, failure cases, and why the Japanese output can become strange.
 
 ## Current Status
 
-Ticket 11 is complete. The project now has a reproducible Aozora Bunko data
+Ticket 12 is complete. The project now has a reproducible Aozora Bunko data
 pipeline, character and SentencePiece tokenizers, language-modeling batches, a
 small GPT-style decoder, a plain PyTorch training loop, checkpoint-based
 generation, sampling comparisons, and optional input/output embedding tying.
@@ -81,12 +81,13 @@ Shift-JIS text, removes common Aozora header/footer text, ruby markup, and
 annotation markup, then writes cleaned UTF-8 text under `data/processed/`.
 
 The smoke output prints `author_id,title,characters,processed_text` so the next
-ticket can confirm there is usable text for each author. The manifest uses three
-works per author:
+ticket can confirm there is usable text. The current manifest uses five works by
+夏目 漱石: `坊っちゃん`, `こころ`, `吾輩は猫である`, `草枕`, and `三四郎`.
 
-- 夏目 漱石: `坊っちゃん`, `こころ`, `吾輩は猫である`
-- 芥川 竜之介: `羅生門`, `鼻`, `蜘蛛の糸`
-- 太宰 治: `走れメロス`, `斜陽`, `人間失格`
+This author-specific corpus is intentional. It prevents the model's training
+examples from mixing the prose of multiple authors while assessing whether the
+small model can learn a consistent style. Earlier multi-author experiments in
+`experiments/results.md` remain historical results, not the current dataset.
 
 Limitations:
 

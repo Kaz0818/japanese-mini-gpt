@@ -359,3 +359,31 @@ Done criteria:
 
 Target commit:
 `feat: add repetition reduction sampling`
+
+## Ticket 15: Natsume Soseki Five-Work Dataset
+
+Status: `DONE`
+
+Goal:
+Replace the default mixed-author source manifest with a reproducible,
+author-specific five-work Natsume Soseki corpus for the next training run.
+
+Tasks:
+- Keep `坊っちゃん`, `こころ`, and `吾輩は猫である`.
+- Add `草枕` and `三四郎` from their Aozora Bunko cards.
+- Remove other authors from the current default manifest so the preparation
+  command downloads exactly the five intended works.
+- Run the preparation command and confirm that five cleaned Natsume records are
+  created with nonzero character counts.
+- Update the README to distinguish the current author-specific corpus from the
+  historical mixed-author experiments.
+
+Done criteria:
+- The tracked manifest contains exactly five Natsume Soseki works.
+- `uv run python scripts/prepare_aozora.py` completes and reports five records.
+- Raw and processed text remain ignored by Git.
+- `git diff --check` passes.
+- Changes are verified and committed locally.
+
+Target commit:
+`data: use five-work natsume soseki corpus`

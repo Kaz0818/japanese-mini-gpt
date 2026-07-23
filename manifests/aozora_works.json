@@ -25,52 +25,20 @@
       "card_url": "https://www.aozora.gr.jp/cards/000148/card789.html"
     },
     {
-      "author_id": "akutagawa_ryunosuke",
-      "author": "Akutagawa Ryunosuke",
-      "author_japanese": "芥川 竜之介",
-      "title": "Rashomon",
-      "title_japanese": "羅生門",
-      "card_url": "https://www.aozora.gr.jp/cards/000879/card127.html"
+      "author_id": "natsume_soseki",
+      "author": "Natsume Soseki",
+      "author_japanese": "夏目 漱石",
+      "title": "Kusamakura",
+      "title_japanese": "草枕",
+      "card_url": "https://www.aozora.gr.jp/cards/000148/card776.html"
     },
     {
-      "author_id": "akutagawa_ryunosuke",
-      "author": "Akutagawa Ryunosuke",
-      "author_japanese": "芥川 竜之介",
-      "title": "The Nose",
-      "title_japanese": "鼻",
-      "card_url": "https://www.aozora.gr.jp/cards/000879/card42.html"
-    },
-    {
-      "author_id": "akutagawa_ryunosuke",
-      "author": "Akutagawa Ryunosuke",
-      "author_japanese": "芥川 竜之介",
-      "title": "The Spider's Thread",
-      "title_japanese": "蜘蛛の糸",
-      "card_url": "https://www.aozora.gr.jp/cards/000879/card92.html"
-    },
-    {
-      "author_id": "dazai_osamu",
-      "author": "Dazai Osamu",
-      "author_japanese": "太宰 治",
-      "title": "Run Melos",
-      "title_japanese": "走れメロス",
-      "card_url": "https://www.aozora.gr.jp/cards/000035/card1567.html"
-    },
-    {
-      "author_id": "dazai_osamu",
-      "author": "Dazai Osamu",
-      "author_japanese": "太宰 治",
-      "title": "The Setting Sun",
-      "title_japanese": "斜陽",
-      "card_url": "https://www.aozora.gr.jp/cards/000035/card1565.html"
-    },
-    {
-      "author_id": "dazai_osamu",
-      "author": "Dazai Osamu",
-      "author_japanese": "太宰 治",
-      "title": "No Longer Human",
-      "title_japanese": "人間失格",
-      "card_url": "https://www.aozora.gr.jp/cards/000035/card301.html"
+      "author_id": "natsume_soseki",
+      "author": "Natsume Soseki",
+      "author_japanese": "夏目 漱石",
+      "title": "Sanshiro",
+      "title_japanese": "三四郎",
+      "card_url": "https://www.aozora.gr.jp/cards/000148/card794.html"
     }
   ]
 }
