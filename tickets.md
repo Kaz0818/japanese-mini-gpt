@@ -387,3 +387,28 @@ Done criteria:
 
 Target commit:
 `data: use five-work natsume soseki corpus`
+
+## Ticket 16: Natsume Soseki Ten-Work Dataset
+
+Status: `DONE`
+
+Goal:
+Increase the author-specific corpus from five to ten Natsume Soseki novels so
+the next model has substantially more consistent-author training text.
+
+Tasks:
+- Keep all five works from Ticket 15.
+- Add `それから`, `門`, `彼岸過迄`, `行人`, and `道草` from Aozora Bunko.
+- Run the preparation command and confirm ten cleaned records with nonzero
+  character counts.
+- Update the README with the current ten-work corpus.
+
+Done criteria:
+- The tracked manifest contains exactly ten Natsume Soseki works.
+- `uv run python scripts/prepare_aozora.py` completes and reports ten records.
+- Raw and processed text remain ignored by Git.
+- `git diff --check` passes.
+- Changes are verified and committed locally.
+
+Target commit:
+`data: expand natsume soseki corpus to ten works`

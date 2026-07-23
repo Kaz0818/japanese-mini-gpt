@@ -3,7 +3,7 @@
 Japanese literature text generation project for a learning portfolio.
 
 The goal is to build a small GPT-style Transformer decoder from scratch and
-train it on Japanese literary texts. The current reproducible dataset uses five
+train it on Japanese literary texts. The current reproducible dataset uses ten
 works by Natsume Soseki so the model can learn from one consistent author corpus
 before any cross-author comparison.
 
@@ -81,8 +81,9 @@ Shift-JIS text, removes common Aozora header/footer text, ruby markup, and
 annotation markup, then writes cleaned UTF-8 text under `data/processed/`.
 
 The smoke output prints `author_id,title,characters,processed_text` so the next
-ticket can confirm there is usable text. The current manifest uses five works by
-夏目 漱石: `坊っちゃん`, `こころ`, `吾輩は猫である`, `草枕`, and `三四郎`.
+ticket can confirm there is usable text. The current manifest uses ten works by
+夏目 漱石: `坊っちゃん`, `こころ`, `吾輩は猫である`, `草枕`, `三四郎`,
+`それから`, `門`, `彼岸過迄`, `行人`, and `道草`.
 
 This author-specific corpus is intentional. It prevents the model's training
 examples from mixing the prose of multiple authors while assessing whether the

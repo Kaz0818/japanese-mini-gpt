@@ -39,6 +39,46 @@
       "title": "Sanshiro",
       "title_japanese": "三四郎",
       "card_url": "https://www.aozora.gr.jp/cards/000148/card794.html"
+    },
+    {
+      "author_id": "natsume_soseki",
+      "author": "Natsume Soseki",
+      "author_japanese": "夏目 漱石",
+      "title": "Sorekara",
+      "title_japanese": "それから",
+      "card_url": "https://www.aozora.gr.jp/cards/000148/card1746.html"
+    },
+    {
+      "author_id": "natsume_soseki",
+      "author": "Natsume Soseki",
+      "author_japanese": "夏目 漱石",
+      "title": "The Gate",
+      "title_japanese": "門",
+      "card_url": "https://www.aozora.gr.jp/cards/000148/card785.html"
+    },
+    {
+      "author_id": "natsume_soseki",
+      "author": "Natsume Soseki",
+      "author_japanese": "夏目 漱石",
+      "title": "Higan Sugi Made",
+      "title_japanese": "彼岸過迄",
+      "card_url": "https://www.aozora.gr.jp/cards/000148/card765.html"
+    },
+    {
+      "author_id": "natsume_soseki",
+      "author": "Natsume Soseki",
+      "author_japanese": "夏目 漱石",
+      "title": "Kojin",
+      "title_japanese": "行人",
+      "card_url": "https://www.aozora.gr.jp/cards/000148/card775.html"
+    },
+    {
+      "author_id": "natsume_soseki",
+      "author": "Natsume Soseki",
+      "author_japanese": "夏目 漱石",
+      "title": "Michikusa",
+      "title_japanese": "道草",
+      "card_url": "https://www.aozora.gr.jp/cards/000148/card783.html"
     }
   ]
 }
