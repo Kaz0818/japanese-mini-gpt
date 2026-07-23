@@ -270,7 +270,7 @@ Target commit:
 
 ## Ticket 12: Generation Quality Summary
 
-Status: `TODO`
+Status: `DONE`
 
 Goal:
 Create a concise generation-quality evaluation note that explains what improved,

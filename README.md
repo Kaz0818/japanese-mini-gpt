@@ -29,6 +29,8 @@ small-weight initialization. It reached validation loss `4.5810` and produced
 phrase-like Japanese fragments, but it still repeats phrases, breaks grammar,
 and loses long-range coherence. Detailed training logs and comparisons are in
 [experiments/results.md](experiments/results.md).
+For a concise portfolio or interview-oriented evaluation, see
+[experiments/generation_quality_summary.md](experiments/generation_quality_summary.md).
 
 ## Best Result Summary
 
